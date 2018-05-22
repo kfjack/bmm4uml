@@ -297,9 +297,9 @@ void converge_protection()
 {
     cout << ">>> WARNING: fit does not fully converge!" << endl;
     cout << ">>> continue? (y/n)" << endl;
-    //string buffer;
-    //cin >> buffer;
-    //if (buffer[0]!='y' && buffer[0]!='Y') exit(1);
+    string buffer;
+    cin >> buffer;
+    if (buffer[0]!='y' && buffer[0]!='Y') exit(1);
 }
 
 // protecting non-existing input file
