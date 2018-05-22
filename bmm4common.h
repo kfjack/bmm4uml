@@ -297,9 +297,9 @@ void converge_protection()
 {
     cout << ">>> WARNING: fit does not fully converge!" << endl;
     cout << ">>> continue? (y/n)" << endl;
-    string buffer;
-    cin >> buffer;
-    if (buffer[0]!='y' && buffer[0]!='Y') exit(1);
+    //string buffer;
+    //cin >> buffer;
+    //if (buffer[0]!='y' && buffer[0]!='Y') exit(1);
 }
 
 // protecting non-existing input file
@@ -430,10 +430,10 @@ public:
         esyst += in.esyst;
         etot = sqrt(pow(estat,2) + pow(esyst,2));
     }
-    void SubVar(TexVar in, bool nonnegative = true) {
+    void SubVar(TexVar in, bool nonnegative = true) { // only used for substraction of BDT bins
         val -= in.val;
         if (nonnegative && val<0.) val = 0.;
-        estat = sqrt(max(0.,pow(estat,2) - pow(in.estat,2)));
+        estat = sqrt(max(0.,pow(estat,2) - pow(in.estat,2))); // note: this "-" was due to the fully correlated statistical error assumed
         esyst -= in.esyst;
         if (nonnegative && esyst<0.) esyst = 0.;
         etot = sqrt(pow(estat,2) + pow(esyst,2));

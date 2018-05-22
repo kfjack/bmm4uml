@@ -69,6 +69,7 @@ void PrepareGlobalVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0)
         wspace->import(*wspace_base->var("dblmu_corr_scale"));
         wspace->import(*wspace_base->pdf("one_over_BRBR_gau"));
         wspace->import(*wspace_base->pdf("fs_over_fu_gau"));
+        wspace->import(*wspace_base->pdf("fs_over_fu_S13_gau"));
         wspace->import(*wspace_base->var("EffTau_bs"));
         wspace->import(*wspace_base->var("EffTau_bd"));
         return;
@@ -78,33 +79,44 @@ void PrepareGlobalVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0)
     
     vector<TString> keys;
     vector<double> values;
-    vector<double> errors;
     
-    keys.push_back("fsfu");
-    keys.push_back("BuToKpsiK");
-    keys.push_back("JpsiToMuMu");
-    keys.push_back("Bs2MuMu_BF");
-    keys.push_back("Bd2MuMu_BF");
+    keys.push_back("fsfu:val");
+    keys.push_back("fsfu:err");
+    keys.push_back("fsfu_S13:val");
+    keys.push_back("fsfu_S13:err");
+    keys.push_back("BF_BuToKpsiK:val");
+    keys.push_back("BF_BuToKpsiK:err");
+    keys.push_back("BF_JpsiToMuMu:val");
+    keys.push_back("BF_JpsiToMuMu:err");
+    keys.push_back("BF_BsToMuMu:val");
+    keys.push_back("BF_BdToMuMu:val");
+    keys.push_back("EffTau_BsToMuMu:val");
+    keys.push_back("EffTau_BdToMuMu:val");
     
     enum {
-        _fsfu, _BF_bu2jpsik, _BF_jpsi2mumu,
-        _BF_bs, _BF_bd
+        _fsfu, _fsfu_err,
+        _fsfu_S13, _fsfu_S13_err,
+        _BF_bu2jpsik, _BF_bu2jpsik_err,
+        _BF_jpsi2mumu, _BF_jpsi2mumu_err,
+        _BF_bs2mumu, _BF_bd2mumu,
+        _EffTau_bs2mumu, _EffTau_bd2mumu
     };
     
-    ReadValuesFromPlainText("input/external_numbers.txt",keys,values,errors);
+    ReadValuesFromTex("input/external_parameters.tex",keys,values);
     
-    RooRealVar BF_bs("BF_bs", "", values[_BF_bs], 0., 1e-8);
-    RooRealVar BF_bd("BF_bd", "", values[_BF_bd], 0., 1e-8);
+    RooRealVar BF_bs("BF_bs", "", values[_BF_bs2mumu], 0., 1e-8);
+    RooRealVar BF_bd("BF_bd", "", values[_BF_bd2mumu], 0., 1e-8);
     
     wspace->import(BF_bs);
     wspace->import(BF_bd);
     
     double one_over_BRBR_val = 1./ (values[_BF_bu2jpsik] * values[_BF_jpsi2mumu]);
     double one_over_BRBR_err = one_over_BRBR_val *
-        sqrt(pow(errors[_BF_bu2jpsik]/values[_BF_bu2jpsik],2) + pow(errors[_BF_jpsi2mumu]/values[_BF_jpsi2mumu],2));
+        sqrt(pow(values[_BF_bu2jpsik_err]/values[_BF_bu2jpsik],2) + pow(values[_BF_jpsi2mumu_err]/values[_BF_jpsi2mumu],2));
 
     BuildGaussianConstaint(wspace, "one_over_BRBR", one_over_BRBR_val, one_over_BRBR_err);
-    BuildGaussianConstaint(wspace, "fs_over_fu", values[_fsfu], errors[_fsfu]);
+    BuildGaussianConstaint(wspace, "fs_over_fu", values[_fsfu], values[_fsfu_err]);
+    BuildGaussianConstaint(wspace, "fs_over_fu_S13", values[_fsfu_S13], values[_fsfu_S13_err]);
     
     // Observables
     RooRealVar Mass("Mass", "", Mass_bound[0], Mass_bound[1]);
@@ -147,8 +159,8 @@ void PrepareGlobalVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0)
     PairCat.defineType("cowboy",1);
     wspace->import(PairCat);
     
-    RooRealVar EffTau_bs("EffTau_bs", "", 1.610, 0.1, 5.0); // in unit of ps, PDG: BH: 1.610 +- 0.012 ps / BL: 1.422 +- 0.008 ps
-    RooRealVar EffTau_bd("EffTau_bd", "", 1.520, 0.1, 5.0); // in unit of ps, PDG: 1.520 +- 0.004 ps
+    RooRealVar EffTau_bs("EffTau_bs", "", values[_EffTau_bs2mumu], 0.1, 5.0); // in unit of ps, PDG: BH: 1.610 +- 0.012 ps / BL: 1.422 +- 0.008 ps
+    RooRealVar EffTau_bd("EffTau_bd", "", values[_EffTau_bs2mumu], 0.1, 5.0); // in unit of ps, PDG: 1.520 +- 0.004 ps
     EffTau_bs.setConstant(true);
     EffTau_bd.setConstant(true);
     wspace->import(EffTau_bs);
@@ -359,57 +371,61 @@ void PrepareBMM4SubVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0
         TexVar eff_bs(TexSource, Form("bdt_%d_%s:EFF-TOT-bsmm-chan%d",bdt_min,cat.era.Data(),cat.region));
         TexVar eff_bd(TexSource, Form("bdt_%d_%s:EFF-TOT-bdmm-chan%d",bdt_min,cat.era.Data(),cat.region));
         TexVar eff_bu(TexSource, Form("bdt_%d_%s:EFF-TOT-bupsik-chan%d",bdt_min,cat.era.Data(),cat.region));
+
+        TexVar effcan_bs(TexSource, Form("bdt_%d_%s:EFF-CAND-bsmm-chan%d",bdt_min,cat.era.Data(),cat.region));
+        TexVar effcan_bd(TexSource, Form("bdt_%d_%s:EFF-CAND-bdmm-chan%d",bdt_min,cat.era.Data(),cat.region));
+        TexVar effcan_bu(TexSource, Form("bdt_%d_%s:EFF-CAND-bupsik-chan%d",bdt_min,cat.era.Data(),cat.region));
+        TexVar effana_bs(TexSource, Form("bdt_%d_%s:EFF-ANA-bsmm-chan%d",bdt_min,cat.era.Data(),cat.region));
+        TexVar effana_bd(TexSource, Form("bdt_%d_%s:EFF-ANA-bdmm-chan%d",bdt_min,cat.era.Data(),cat.region));
+        TexVar effana_bu(TexSource, Form("bdt_%d_%s:EFF-ANA-bupsik-chan%d",bdt_min,cat.era.Data(),cat.region));
         
         if (bdt_max<100) {
             N_bu.SubVar(TexVar(TexSource, Form("bdt_%d_%s:N-W8OBS-bupsik-chan%d",bdt_max,cat.era.Data(),cat.region)));
             eff_bs.SubVar(TexVar(TexSource, Form("bdt_%d_%s:EFF-TOT-bsmm-chan%d",bdt_max,cat.era.Data(),cat.region)));
             eff_bd.SubVar(TexVar(TexSource, Form("bdt_%d_%s:EFF-TOT-bdmm-chan%d",bdt_max,cat.era.Data(),cat.region)));
             eff_bu.SubVar(TexVar(TexSource, Form("bdt_%d_%s:EFF-TOT-bupsik-chan%d",bdt_max,cat.era.Data(),cat.region)));
+            
+            effcan_bs.SubVar(TexVar(TexSource, Form("bdt_%d_%s:EFF-CAND-bsmm-chan%d",bdt_max,cat.era.Data(),cat.region)));
+            effcan_bd.SubVar(TexVar(TexSource, Form("bdt_%d_%s:EFF-CAND-bdmm-chan%d",bdt_max,cat.era.Data(),cat.region)));
+            effcan_bu.SubVar(TexVar(TexSource, Form("bdt_%d_%s:EFF-CAND-bupsik-chan%d",bdt_max,cat.era.Data(),cat.region)));
+            effana_bs.SubVar(TexVar(TexSource, Form("bdt_%d_%s:EFF-ANA-bsmm-chan%d",bdt_max,cat.era.Data(),cat.region)));
+            effana_bd.SubVar(TexVar(TexSource, Form("bdt_%d_%s:EFF-ANA-bdmm-chan%d",bdt_max,cat.era.Data(),cat.region)));
+            effana_bu.SubVar(TexVar(TexSource, Form("bdt_%d_%s:EFF-ANA-bupsik-chan%d",bdt_max,cat.era.Data(),cat.region)));
         }
         
         BuildGaussianConstaint(wspace, Form("N_bu_%s",cat.id.Data()),N_bu.val,N_bu.etot);
         
         double eff_rel_err = 0.;
+        eff_rel_err += pow(0.01,2); // Acceptance: should be mostly cancelled, take 1% as a placeholder.
+        eff_rel_err += pow(0.04,2); // Kaon track: 4%
+        eff_rel_err += pow(0.02,2); // Muon ID: should be mostly cancelled, take 2% as a placeholder.
+        eff_rel_err += pow(0.02,2); // relDeltaEpsNoDataNoMcchan, take 2% as a placeholder.
+        eff_rel_err += pow(0.02,2); // relDeltaEpsCsDataCsMcchan, take 2% as a placeholder.
         
-        vector<TString> sys_keys;
-        vector<double> sys_values;
-        vector<double> sys_errors;
-        
-        sys_keys.push_back(Form("Acceptance_%d",0));
-        sys_keys.push_back(Form("MassScale_%d",0));
-        sys_keys.push_back(Form("KaonTrack_%d",0));
-        sys_keys.push_back(Form("Trigger_%d",0));
-        sys_keys.push_back(Form("MuonID_%d",0));
-        
-        enum { _Acceptance, _MassScale, _KaonTrack, _Trigger, _MuonID };
-        
-        ReadValuesFromPlainText("input/external_numbers.txt",sys_keys,sys_values,sys_errors);
-        
-        // ISSUE: take run-I barrel systematics at this moment
-        eff_rel_err += pow(sys_values[_Acceptance],2); //3.5%
-        eff_rel_err += pow(sys_values[_MassScale],2); //0%
-        eff_rel_err += pow(sys_values[_KaonTrack],2); //4%
-        eff_rel_err += pow(sys_values[_Trigger],2); //3%
-        eff_rel_err += pow(sys_values[_MuonID],2); //4.5%
-        
-        /* // ISSUE: no systematics for data vs MC (control channel & normalization) at this moment
-        sys_keys.clear();
-        sys_keys.push_back(Form("relDeltaEpsNoDataNoMcchan%d:val",cat.region));
-        sys_keys.push_back(Form("relDeltaEpsCsDataCsMcchan%d:val",cat.region));
-        
-        enum { _NO_err, _CS_err };
-        
-        ReadValuesFromTex(Form("input/%s/anaBmm.plotReducedOverlays.%s.tex",cat.era.Data(),cat.era.Data()),sys_keys,sys_values);
-        
-        eff_rel_err += pow(sys_values[_NO_err],2);
-        eff_rel_err += pow(sys_values[_CS_err],2);*/
+        if (cat.era.Contains("2016BF")) eff_rel_err += pow(0.07,2); // Trigger: 7% for 2016BF
+        else
+        if (cat.era.Contains("2016GH")) eff_rel_err += pow(0.03,2); // Trigger: 3% for 2016GH
+        else eff_rel_err += pow(0.02,2); // Trigger: mostly cancelled for Run-I, take 2% as a placeholder
         
         double effratio_bs = eff_bs.val/eff_bu.val;
         double effratio_bd = eff_bd.val/eff_bu.val;
-        double effratio_bs_err = pow(eff_bs.etot/eff_bs.val,2);
-        double effratio_bd_err = pow(eff_bd.etot/eff_bd.val,2);
+        double effratio_bs_err = pow(eff_bs.estat/eff_bs.val,2);
+        double effratio_bd_err = pow(eff_bd.estat/eff_bd.val,2);
         effratio_bs_err += eff_rel_err;
         effratio_bd_err += eff_rel_err;
+        
+        // Addig eff_cand systematic errors
+        effratio_bs_err += pow(effcan_bs.esyst/effcan_bs.val,2);
+        effratio_bd_err += pow(effcan_bd.esyst/effcan_bd.val,2);
+        effratio_bs_err += pow(effcan_bu.esyst/effcan_bu.val,2);
+        effratio_bd_err += pow(effcan_bu.esyst/effcan_bu.val,2);
+
+        // Addig eff_ana systematic errors
+        effratio_bs_err += pow(effana_bs.esyst/effana_bs.val,2);
+        effratio_bd_err += pow(effana_bd.esyst/effana_bd.val,2);
+        effratio_bs_err += pow(effana_bu.esyst/effana_bu.val,2);
+        effratio_bd_err += pow(effana_bu.esyst/effana_bu.val,2);
+        
         effratio_bs_err = sqrt(effratio_bs_err)*effratio_bs;
         effratio_bd_err = sqrt(effratio_bd_err)*effratio_bd;
         
@@ -430,9 +446,8 @@ void PrepareBMM4SubVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0
             N_peak.AddVar(var);
         }
         
-        if (N_peak.etot<N_peak.val*0.5) { // ISSUE: hot fix for too small uncertainty?
-            N_peak.etot = N_peak.val*0.5;
-        }
+        // ISSUE: hot fix for too small uncertainty?
+        //if (N_peak.etot<N_peak.val*0.5) N_peak.etot = N_peak.val*0.5;
         
         BuildLognormalConstaint(wspace, Form("N_peak_%s",cat.id.Data()),N_peak.val,1.+N_peak.etot/N_peak.val);
         
@@ -450,9 +465,8 @@ void PrepareBMM4SubVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0
             N_semi.AddVar(var);
         }
         
-        if (N_semi.etot<N_semi.val*0.5) { // ISSUE: hot fix for too small uncertainty?
-            N_semi.etot = N_semi.val*0.5;
-        }
+        // ISSUE: hot fix for too small uncertainty?
+        //if (N_semi.etot<N_semi.val*0.5) N_semi.etot = N_semi.val*0.5;
         
         BuildGaussianConstaint(wspace, Form("N_semi_%s",cat.id.Data()),N_semi.val,N_semi.etot);
         
@@ -470,9 +484,8 @@ void PrepareBMM4SubVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0
             N_h2mu.AddVar(var);
         }
         
-        if (N_h2mu.etot<N_h2mu.val*0.5) { // ISSUE: hot fix for too small uncertainty?
-            N_h2mu.etot = N_h2mu.val*0.5;
-        }
+        // ISSUE: hot fix for too small uncertainty?
+        //if (N_h2mu.etot<N_h2mu.val*0.5) N_h2mu.etot = N_h2mu.val*0.5;
         
         BuildLognormalConstaint(wspace, Form("N_h2mu_%s",cat.id.Data()),N_h2mu.val,1.+N_h2mu.etot/N_h2mu.val);
         
@@ -2336,6 +2349,7 @@ void PrepareGlobalPDF(RooWorkspace* wspace, TString opt = "bdtcat")
     RooRealVar *BF_bd = wspace->var("BF_bd");
     RooRealVar *one_over_BRBR = wspace->var("one_over_BRBR");
     RooRealVar *fs_over_fu = wspace->var("fs_over_fu");
+    RooRealVar *fs_over_fu_S13 = wspace->var("fs_over_fu_S13");
     RooRealVar *dblmu_corr_scale = wspace->var("dblmu_corr_scale");
     RooCategory *GlobalCat = wspace->cat("GlobalCat");
     
@@ -2367,8 +2381,12 @@ void PrepareGlobalPDF(RooWorkspace* wspace, TString opt = "bdtcat")
         RooRealVar *effratio_bs = wspace->var(Form("effratio_bs_%s", cat.id.Data()));
         RooRealVar *effratio_bd = wspace->var(Form("effratio_bd_%s", cat.id.Data()));
         
-        N_bs_formula[cat.index] = new RooFormulaVar(Form("N_bs_formula_%s", cat.id.Data()), "", "@0*@1*@2*@3*@4",
-                                                  RooArgList(*BF_bs, *N_bu, *fs_over_fu, *effratio_bs, *one_over_BRBR));
+        if (cat.era.Contains("2016"))
+            N_bs_formula[cat.index] = new RooFormulaVar(Form("N_bs_formula_%s", cat.id.Data()), "", "@0*@1*@2*@3*@4*@5",
+                                                        RooArgList(*BF_bs, *N_bu, *fs_over_fu, *fs_over_fu_S13, *effratio_bs, *one_over_BRBR));
+        else
+            N_bs_formula[cat.index] = new RooFormulaVar(Form("N_bs_formula_%s", cat.id.Data()), "", "@0*@1*@2*@3*@4",
+                                                        RooArgList(*BF_bs, *N_bu, *fs_over_fu, *effratio_bs, *one_over_BRBR));
         N_bd_formula[cat.index] = new RooFormulaVar(Form("N_bd_formula_%s", cat.id.Data()), "", "@0*@1*@2*@3",
                                                   RooArgList(*BF_bd, *N_bu, *effratio_bd, *one_over_BRBR));
         
@@ -2423,6 +2441,7 @@ void PrepareNamedArgSets(RooWorkspace* wspace)
     RooArgSet all_nuisances;
     
     all_nuisances.add(*wspace->var("fs_over_fu"));
+    all_nuisances.add(*wspace->var("fs_over_fu_S13"));
     all_nuisances.add(*wspace->var("one_over_BRBR"));
     
     for (auto& cat: CatMan.cats) {
@@ -2891,7 +2910,7 @@ void bmm4fitter(TString commands = "")
         RooAbsData *global_data = wspace->data("global_data");
         RooAbsPdf *global_pdf = wspace->pdf("global_pdf");
         
-        RooArgSet global_ext_constr(*wspace->pdf("fs_over_fu_gau"),*wspace->pdf("one_over_BRBR_gau")); // external Gaussian constraints
+        RooArgSet global_ext_constr(*wspace->pdf("fs_over_fu_gau"),*wspace->pdf("fs_over_fu_S13_gau"),*wspace->pdf("one_over_BRBR_gau")); // external Gaussian constraints
         RooArgSet minos_list;
         for (auto& POI: POI_list) minos_list.add(*wspace->var(POI));
         

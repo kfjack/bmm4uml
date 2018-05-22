@@ -183,12 +183,17 @@ void PerformToyStudy(RooWorkspace *wspace_res, RooWorkspace* wspace_gen, RooWork
             
             // change the wspace_gen
             RooRealVar *fs_over_fu = wspace_gen->var("fs_over_fu");
+            RooRealVar *fs_over_fu_S13 = wspace_gen->var("fs_over_fu_S13");
             RooRealVar *one_over_BRBR = wspace_gen->var("one_over_BRBR");
             RooAbsPdf *fs_over_fu_gau = wspace_gen->pdf("fs_over_fu_gau");
+            RooAbsPdf *fs_over_fu_S13_gau = wspace_gen->pdf("fs_over_fu_S13_gau");
             RooAbsPdf *one_over_BRBR_gau = wspace_gen->pdf("one_over_BRBR_gau");
             
             tmp_evt = fs_over_fu_gau->generate(RooArgSet(*fs_over_fu),1);
             fs_over_fu->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu->GetName())); delete tmp_evt;
+
+            tmp_evt = fs_over_fu_S13_gau->generate(RooArgSet(*fs_over_fu_S13),1);
+            fs_over_fu_S13->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu_S13->GetName())); delete tmp_evt;
             
             tmp_evt = one_over_BRBR_gau->generate(RooArgSet(*one_over_BRBR),1);
             one_over_BRBR->setVal(tmp_evt->get(0)->getRealValue(one_over_BRBR->GetName())); delete tmp_evt;
@@ -233,16 +238,23 @@ void PerformToyStudy(RooWorkspace *wspace_res, RooWorkspace* wspace_gen, RooWork
             
             // change the clone of wspace_fit
             RooRealVar *fs_over_fu = wspace->var("fs_over_fu");
+            RooRealVar *fs_over_fu_S13 = wspace->var("fs_over_fu_S13");
             RooRealVar *one_over_BRBR = wspace->var("one_over_BRBR");
             RooRealVar *fs_over_fu_mean = wspace->var("fs_over_fu_mean");
+            RooRealVar *fs_over_fu_S13_mean = wspace->var("fs_over_fu_S13_mean");
             RooRealVar *one_over_BRBR_mean = wspace->var("one_over_BRBR_mean");
             RooAbsPdf *fs_over_fu_gau = wspace->pdf("fs_over_fu_gau");
+            RooAbsPdf *fs_over_fu_S13_gau = wspace->pdf("fs_over_fu_S13_gau");
             RooAbsPdf *one_over_BRBR_gau = wspace->pdf("one_over_BRBR_gau");
             
             fs_over_fu_mean->setVal(fs_over_fu->getVal());
             tmp_evt = fs_over_fu_gau->generate(RooArgSet(*fs_over_fu),1);
             fs_over_fu_mean->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu->GetName())); delete tmp_evt;
 
+            fs_over_fu_S13_mean->setVal(fs_over_fu_S13->getVal());
+            tmp_evt = fs_over_fu_S13_gau->generate(RooArgSet(*fs_over_fu_S13),1);
+            fs_over_fu_S13_mean->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu_S13->GetName())); delete tmp_evt;
+            
             one_over_BRBR_mean->setVal(one_over_BRBR->getVal());
             tmp_evt = one_over_BRBR_gau->generate(RooArgSet(*one_over_BRBR),1);
             one_over_BRBR_mean->setVal(tmp_evt->get(0)->getRealValue(one_over_BRBR->GetName())); delete tmp_evt;
@@ -415,7 +427,7 @@ void PerformToyStudy(RooWorkspace *wspace_res, RooWorkspace* wspace_gen, RooWork
             }
         }
         
-        RooArgSet global_ext_constr(*wspace->pdf("fs_over_fu_gau"),*wspace->pdf("one_over_BRBR_gau"));
+        RooArgSet global_ext_constr(*wspace->pdf("fs_over_fu_gau"),*wspace->pdf("fs_over_fu_S13_gau"),*wspace->pdf("one_over_BRBR_gau"));
         RooArgSet minos_list;
         for (auto& POI: POI_list) minos_list.add(*wspace->var(POI));
         
