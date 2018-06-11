@@ -285,7 +285,7 @@ public:
     int index(TString era, int region, double bdt_val) {
         for (int i=0; i<(int)cats.size(); i++) {
             if (cats[i].era == era && cats[i].region == region &&
-                bdt_val>=cats[i].bdt_min && bdt_val<=cats[i].bdt_max)
+                bdt_val>=cats[i].bdt_min && bdt_val<cats[i].bdt_max)
                 return cats[i].index;
         }
         return -1;

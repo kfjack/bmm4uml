@@ -1,6 +1,98 @@
 #include "bmm4common.h"
 
 // ----------------------------------------------------
+// Extract the BDT distribution from MC and estimate the corresponding eff for given BDT, or
+// find the proper BDT threshold for the given eff
+// available options:
+// bsmm      - build B->mumu resolution model
+// bupsik    - build B->J/psi K+ resolution model
+//
+// NOTE: the "target_cat" can be exactly the category ID (e.g. 2016BFs01_0_0), or the inclusive name of era (2016BFs01).
+//
+double EffBDTConvertion(TString opt = "bsmm", TString target_cat = "2016BFs01", double alter_BDT = -2., double alter_eff = -2.)
+{
+    cout << ">>> EffBDTConvertion() start" << endl;
+    
+    TString tag, treename;
+    
+    if (opt.Contains("bsmm")) {
+        tag = "bsmm";
+        treename = "bsmmMc";
+    }else if (opt.Contains("bupsik")) {
+        tag = "bupsik";
+        treename = "bupsikMc";
+    }else {
+        cout << ">>> Undefined option: " << opt << endl;
+        return -1.;
+    }
+    
+    TString target_era = target_cat;
+    for (auto& cat: CatMan.cats)
+        if (cat.id == target_cat) target_era = cat.era; // retreive the era name if the given target_cat is exactly the category ID
+    
+    // load the corresponding MC sample
+    TString filename = Form("input/bmm4/small%s-%s.root",target_era.Data(),treename.Data());
+    TChain *events = new TChain(treename);
+    exist_protection(filename);
+    events->Add(filename);
+    cout << ">>> Loading from " << filename << ", with " << events->GetEntries() << " entries." << endl;
+    
+    double m_t, me_t, pt_t, tau_t, taue_t, gtau_t, bdt_t;
+    int chan_t;
+    bool muid_t, cnc_t;
+    
+    events->SetBranchAddress("m", &m_t);
+    events->SetBranchAddress("me", &me_t);
+    events->SetBranchAddress("pt", &pt_t);
+    events->SetBranchAddress("tau", &tau_t);
+    events->SetBranchAddress("taue", &taue_t);
+    events->SetBranchAddress("gtau", &gtau_t);
+    events->SetBranchAddress("bdt", &bdt_t);
+    events->SetBranchAddress("chan", &chan_t);
+    events->SetBranchAddress("muid", &muid_t);
+    events->SetBranchAddress("cnc", &cnc_t);
+    
+    vector<double> vec_bdt;
+    
+    for (int evt=0; evt<events->GetEntries();evt++) {
+        events->GetEntry(evt);
+        
+        if (m_t < Mass_bound[0] || m_t > Mass_bound[1] || !muid_t) continue;
+        if (me_t/m_t < ReducedMassRes_bound[0] || me_t/m_t > ReducedMassRes_bound[1]) continue;
+        if (bdt_t < -1.) continue;
+        
+        if (target_cat!=target_era) { // exclusive category ID selection
+            
+            bool selected = false;
+            for (auto& cat: CatMan.cats) {
+                if (cat.id != target_cat) continue;
+                if (cat.region == chan_t) selected = true;
+            }
+            if (!selected) continue;
+        }
+        
+        if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
+        if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
+        
+        vec_bdt.push_back(bdt_t);
+    }
+    
+    if (alter_BDT>-1.) {
+        double eff = 0.;
+        for (int idx=0; idx<(int)vec_bdt.size(); idx++)
+            if (vec_bdt[idx]>=alter_BDT) eff += 1.;
+        return eff/(double)vec_bdt.size();
+    }
+    
+    if (alter_eff>=0.) {
+        sort(vec_bdt.begin(),vec_bdt.end());
+        return vec_bdt[(int)((double)vec_bdt.size()*(1.-alter_eff))];
+    }
+    
+    return -1.;
+}
+
+// ----------------------------------------------------
 // Prepare the resolution functions for lifetime fit
 // current model: double-Gaussian, with <taue> as the main scaling factor
 // available options:
@@ -13,7 +105,9 @@
 // even      - only use the even events
 // odd       - only use the odd events
 //
-void PrepareLifetimeResolutionModel(RooWorkspace *wspace, TString opt = "bsmm:triple", TString target_cat = "2016BF", double alter_BDT = -2.)
+// NOTE: the "target_cat" can be exactly the category ID (e.g. 2016BFs01_0_0), or the inclusive name of era (2016BFs01).
+//
+void PrepareLifetimeResolutionModel(RooWorkspace *wspace, TString opt = "bsmm:triple", TString target_cat = "2016BFs01", double alter_BDT = -2.)
 {
     cout << ">>> PrepareLifetimeResolutionModel() start" << endl;
     
@@ -33,7 +127,7 @@ void PrepareLifetimeResolutionModel(RooWorkspace *wspace, TString opt = "bsmm:tr
     
     TString target_era = target_cat;
     for (auto& cat: CatMan.cats)
-        if (cat.id == target_cat) target_era = cat.era;
+        if (cat.id == target_cat) target_era = cat.era; // retreive the era name if the given target_cat is exactly the category ID
     
     RooRealVar delTau("delTau","",-0.6,+0.6);
     TH1D *h_global_deltau = new TH1D("h_global_deltau","",240,-0.6,+0.6);
@@ -70,13 +164,26 @@ void PrepareLifetimeResolutionModel(RooWorkspace *wspace, TString opt = "bsmm:tr
         if (me_t/m_t < ReducedMassRes_bound[0] || me_t/m_t > ReducedMassRes_bound[1]) continue;
         if (bdt_t < -1.) continue;
         
-        int index = CatMan.index(target_era, chan_t, bdt_t);
-        
-        if (alter_BDT>-1.) {
-            if (bdt_t<alter_BDT) continue;
-        }else if (index<0) continue;
-        
-        if (target_cat!=target_era && index>=0 && target_cat!=CatMan.cats[index].id) continue;
+        if (target_cat==target_era) { // inclusive era selection
+            int index = CatMan.index(target_era, chan_t, bdt_t);
+            
+            if (alter_BDT>-1.) {
+                if (bdt_t<alter_BDT) continue;
+            }else if (index<0) continue;
+            
+        }else { // exclusive category ID selection
+            
+            bool selected = false;
+            for (auto& cat: CatMan.cats) {
+                if (cat.id != target_cat) continue;
+                if (alter_BDT<-1. && cat.region == chan_t &&
+                    bdt_t>=cat.bdt_min && bdt_t<cat.bdt_max) selected = true;
+                if (alter_BDT>-1. && cat.region == chan_t &&
+                    bdt_t>=alter_BDT) selected = true;
+
+            }
+            if (!selected) continue;
+        }
         
         if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
         if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
@@ -238,7 +345,9 @@ void PrepareLifetimeResolutionModel(RooWorkspace *wspace, TString opt = "bsmm:tr
 // even      - only use the even events
 // odd       - only use the odd events
 //
-void PrepareLifetimeEfficiencyModel(RooWorkspace *wspace, TString opt = "bsmm:threshold", TString target_cat = "2016BF", double alter_BDT = -2.)
+// NOTE: the "target_cat" can be exactly the category ID (e.g. 2016BFs01_0_0), or the inclusive name of era (2016BFs01).
+//
+void PrepareLifetimeEfficiencyModel(RooWorkspace *wspace, TString opt = "bsmm:threshold", TString target_cat = "2016BFs01", double alter_BDT = -2.)
 {
     cout << ">>> PrepareLifetimeEfficiencyModel() start" << endl;
     
@@ -264,7 +373,7 @@ void PrepareLifetimeEfficiencyModel(RooWorkspace *wspace, TString opt = "bsmm:th
     
     TString target_era = target_cat;
     for (auto& cat: CatMan.cats)
-        if (cat.id == target_cat) target_era = cat.era;
+        if (cat.id == target_cat) target_era = cat.era; // retreive the era name if the given target_cat is exactly the category ID
 
     vector<double> xbins = {
         0.5,0.625,0.75,0.875,
@@ -307,13 +416,26 @@ void PrepareLifetimeEfficiencyModel(RooWorkspace *wspace, TString opt = "bsmm:th
         if (me_t/m_t < ReducedMassRes_bound[0] || me_t/m_t > ReducedMassRes_bound[1]) continue;
         if (bdt_t < -1.) continue;
         
-        int index = CatMan.index(target_era, chan_t, bdt_t);
-        
-        if (alter_BDT>-1.) {
-            if (bdt_t<alter_BDT) continue;
-        }else if (index<0) continue;
-        
-        if (target_cat!=target_era && index>=0 && target_cat!=CatMan.cats[index].id) continue;
+        if (target_cat==target_era) { // inclusive era selection
+            int index = CatMan.index(target_era, chan_t, bdt_t);
+            
+            if (alter_BDT>-1.) {
+                if (bdt_t<alter_BDT) continue;
+            }else if (index<0) continue;
+            
+        }else { // exclusive category ID selection
+            
+            bool selected = false;
+            for (auto& cat: CatMan.cats) {
+                if (cat.id != target_cat) continue;
+                if (alter_BDT<-1. && cat.region == chan_t &&
+                    bdt_t>=cat.bdt_min && bdt_t<cat.bdt_max) selected = true;
+                if (alter_BDT>-1. && cat.region == chan_t &&
+                    bdt_t>=alter_BDT) selected = true;
+                
+            }
+            if (!selected) continue;
+        }
         
         //if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
         if (tau_t*1E12 < 0.5 || tau_t*1E12 > Tau_bound[1]) continue; // allow a litte bit more to the lower side
@@ -498,7 +620,9 @@ void PrepareLifetimeEfficiencyModel(RooWorkspace *wspace, TString opt = "bsmm:th
 // reco      - fit to reco decay time
 // toybkg    - mixing with toy combinatorial background
 //
-void PerformMCTauSPlotStudy(RooWorkspace *wspace, TString opt = "bsmm:reco", TString target_cat = "2016BF", double alter_BDT = -2.)
+// NOTE: the "target_cat" can be exactly the category ID (e.g. 2016BFs01_0_0), or the inclusive name of era (2016BFs01).
+//
+void PerformMCTauSPlotStudy(RooWorkspace *wspace, TString opt = "bsmm:reco", TString target_cat = "2016BFs01", double alter_BDT = -2.)
 {
     cout << ">>> PerformMCTauSPlotStudy() start" << endl;
     
@@ -518,7 +642,7 @@ void PerformMCTauSPlotStudy(RooWorkspace *wspace, TString opt = "bsmm:reco", TSt
     
     TString target_era = target_cat;
     for (auto& cat: CatMan.cats)
-        if (cat.id == target_cat) target_era = cat.era;
+        if (cat.id == target_cat) target_era = cat.era; // retreive the era name if the given target_cat is exactly the category ID
     
     filename = Form("input/bmm4/small%s-%s.root",target_era.Data(),treename.Data());
     filename_eff = Form("input/bmm4/eff%s-%s.root",target_era.Data(),treename.Data());
@@ -591,13 +715,26 @@ void PerformMCTauSPlotStudy(RooWorkspace *wspace, TString opt = "bsmm:reco", TSt
             if (me_t/m_t < ReducedMassRes_bound[0] || me_t/m_t > ReducedMassRes_bound[1]) continue;
             if (bdt_t < -1.) continue;
             
-            int index = CatMan.index(target_era, chan_t, bdt_t);
-            
-            if (alter_BDT>-1.) {
-                if (bdt_t<alter_BDT) continue;
-            }else if (index<0) continue;
-            
-            if (target_cat!=target_era && index>=0 && target_cat!=CatMan.cats[index].id) continue;
+            if (target_cat==target_era) { // inclusive era selection
+                int index = CatMan.index(target_era, chan_t, bdt_t);
+                
+                if (alter_BDT>-1.) {
+                    if (bdt_t<alter_BDT) continue;
+                }else if (index<0) continue;
+                
+            }else { // exclusive category ID selection
+                
+                bool selected = false;
+                for (auto& cat: CatMan.cats) {
+                    if (cat.id != target_cat) continue;
+                    if (alter_BDT<-1. && cat.region == chan_t &&
+                        bdt_t>=cat.bdt_min && bdt_t<cat.bdt_max) selected = true;
+                    if (alter_BDT>-1. && cat.region == chan_t &&
+                        bdt_t>=alter_BDT) selected = true;
+                    
+                }
+                if (!selected) continue;
+            }
             
             // tau cuts
             if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
@@ -800,7 +937,9 @@ void PerformMCTauSPlotStudy(RooWorkspace *wspace, TString opt = "bsmm:reco", TSt
 // even      - only use the even events
 // odd       - only use the odd events
 //
-void PerformBuDataTauSPlotStudy(RooWorkspace *wspace, TString opt = "bupsik", TString target_cat = "2016BF", double alter_BDT = -2.)
+// NOTE: the "target_cat" can be exactly the category ID (e.g. 2016BFs01_0_0), or the inclusive name of era (2016BFs01).
+//
+void PerformBuDataTauSPlotStudy(RooWorkspace *wspace, TString opt = "bupsik", TString target_cat = "2016BFs01", double alter_BDT = -2.)
 {
     cout << ">>> PerformBuDataTauSPlotStudy() start" << endl;
     
@@ -825,7 +964,7 @@ void PerformBuDataTauSPlotStudy(RooWorkspace *wspace, TString opt = "bupsik", TS
     
     TString target_era = target_cat;
     for (auto& cat: CatMan.cats)
-        if (cat.id == target_cat) target_era = cat.era;
+        if (cat.id == target_cat) target_era = cat.era; // retreive the era name if the given target_cat is exactly the category ID
     
     // extract observables
     RooRealVar *Mass = wspace->var("Mass");
@@ -860,9 +999,7 @@ void PerformBuDataTauSPlotStudy(RooWorkspace *wspace, TString opt = "bupsik", TS
     
     RooDataSet *rds = new RooDataSet("rds","",RooArgSet(*Mass,*Tau,*TauRes,*Weight));
 
-    TString filename;
-    if (target_era.Contains("2016")) filename = Form("input/bmm4/small2016*-%s.root",treename.Data());
-    else filename = Form("input/bmm4/small%s-%s.root",target_era.Data(),treename.Data());
+    TString filename = Form("input/bmm4/small%s-%s.root",target_era.Data(),treename.Data());
 
     TChain *events = new TChain(treename);
     //exist_protection(filename);
@@ -894,13 +1031,26 @@ void PerformBuDataTauSPlotStudy(RooWorkspace *wspace, TString opt = "bupsik", TS
         if (me_t/m_t < ReducedMassRes_bound[0] || me_t/m_t > ReducedMassRes_bound[1]) continue;
         if (bdt_t < -1.) continue;
         
-        int index = CatMan.index(target_era, chan_t, bdt_t);
-        
-        if (alter_BDT>-1.) {
-            if (bdt_t<alter_BDT) continue;
-        }else if (index<0) continue;
-        
-        if (target_cat!=target_era && index>=0 && target_cat!=CatMan.cats[index].id) continue;
+        if (target_cat==target_era) { // inclusive era selection
+            int index = CatMan.index(target_era, chan_t, bdt_t);
+            
+            if (alter_BDT>-1.) {
+                if (bdt_t<alter_BDT) continue;
+            }else if (index<0) continue;
+            
+        }else { // exclusive category ID selection
+            
+            bool selected = false;
+            for (auto& cat: CatMan.cats) {
+                if (cat.id != target_cat) continue;
+                if (alter_BDT<-1. && cat.region == chan_t &&
+                    bdt_t>=cat.bdt_min && bdt_t<cat.bdt_max) selected = true;
+                if (alter_BDT>-1. && cat.region == chan_t &&
+                    bdt_t>=alter_BDT) selected = true;
+                
+            }
+            if (!selected) continue;
+        }
         
         // tau cuts
         //if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
@@ -910,6 +1060,7 @@ void PerformBuDataTauSPlotStudy(RooWorkspace *wspace, TString opt = "bupsik", TS
         if (opt.Contains("even") && (evt%2==1)) continue;
         if (opt.Contains("odd") && (evt%2==0)) continue;
         
+        /* // this is not used anymore
         if (target_era=="2016B" && (run_t<273150 || run_t>275376)) continue;
         if (target_era=="2016C" && (run_t<275657 || run_t>276283)) continue;
         if (target_era=="2016D" && (run_t<276315 || run_t>276811)) continue;
@@ -919,6 +1070,7 @@ void PerformBuDataTauSPlotStudy(RooWorkspace *wspace, TString opt = "bupsik", TS
         if (target_era=="2016H" && (run_t<281613 || run_t>284044)) continue;
         if (target_era=="2016BF" && (run_t<273150 || run_t>278808)) continue;
         if (target_era=="2016GH" && (run_t<278820 || run_t>284044)) continue;
+         */
         
         Mass->setVal(m_t); // unconstrained mass
         Tau->setVal(tau_t*1E12);
@@ -1230,7 +1382,9 @@ void PerformBuDataTauSPlotStudy(RooWorkspace *wspace, TString opt = "bupsik", TS
 // available options:
 // bupsik    - produce the corrections based on B->J/psi K+ data and MC
 //
-void PrepareLifetimeEfficiencyCorrection(RooWorkspace *wspace, TString opt = "bupsik", TString target_cat = "2016BF")
+// NOTE: the "target_cat" can be exactly the category ID (e.g. 2016BFs01_0_0), or the inclusive name of era (2016BFs01).
+//
+void PrepareLifetimeEfficiencyCorrection(RooWorkspace *wspace, TString opt = "bupsik", TString target_cat = "2016BFs01")
 {
     cout << ">>> PrepareLifetimeEfficiencyCorrection() start" << endl;
     
@@ -1244,7 +1398,7 @@ void PrepareLifetimeEfficiencyCorrection(RooWorkspace *wspace, TString opt = "bu
     
     TString target_era = target_cat;
     for (auto& cat: CatMan.cats)
-        if (cat.id == target_cat) target_era = cat.era;
+        if (cat.id == target_cat) target_era = cat.era; // retreive the era name if the given target_cat is exactly the category ID
     
     // extract h_taureco and h_taureco_mc
     TH1D *h_taureco = (TH1D*)wspace->obj(Form("h_taureco_%s",tag.Data()));
@@ -1367,8 +1521,8 @@ void bmm4validation(TString commands = "")
     // -----------------------------------------------------------
     // parse the commands
     bool do_tausplot_mcstudy = false, do_tausplot_datastudy = false, do_tausplot_correction = false;
-    double alter_BDT = -2.;
-    TString select_era = "2016BF";
+    double alter_BDT = -2., alter_eff = -2.;
+    TString select_cat = "2016BFs01";
     TString select_proc = "bsmm";
     TString select_type = "reco";
     TString file_valid = "wspace_valid.root";
@@ -1380,9 +1534,10 @@ void bmm4validation(TString commands = "")
     cout << ">>> - tausplot_mcstudy                   : perform MC study for lifetime fit" << endl;
     cout << ">>> - tausplot_datastudy                 : perform data study for lifetime fit (J/psi K+ only)" << endl;
     cout << ">>> - tausplot_correction                : compute correction factors for each year/era" << endl;
-    cout << ">>> - era=[2016BF]                       : set the target sample (from which year/era)" << endl;
+    cout << ">>> - cat=[2016BFs01]                    : set the target category id or era" << endl;
     cout << ">>> - proc=[bsmm]                        : set the target process, Bs->mumu (bsmm) or B+->J/psiK+ (bupsik)" << endl;
     cout << ">>> - bdt=[-2.]                          : alternative BDT threshold, -2: using the category definition." << endl;
+    cout << ">>> - eff=[-2.]                          : alternative BDT threshold, set at target efficiency" << endl;
     cout << ">>> - type=[reco]                        : set the target type " << endl;
     cout << ">>>         genonly   - fit to pure generated decay time" << endl;
     cout << ">>>         geneff    - fit to generated decay time, with efficiency correction" << endl;
@@ -1398,12 +1553,15 @@ void bmm4validation(TString commands = "")
              if (tok=="tausplot_mcstudy") do_tausplot_mcstudy = true;       // perform MC study for lifetime fit
         else if (tok=="tausplot_datastudy") do_tausplot_datastudy = true;   // perform data study for lifetime fit, J/psi K+ only
         else if (tok=="tausplot_correction") do_tausplot_correction = true; // compute correction factors for each year/era
-        else if (tok=="era") {                                              // set the target era
+        else if (tok=="cat") {                                              // set the target cat
             commands.Tokenize(tok, from, "[ \t;=:]");
-            select_era = tok;
+            select_cat = tok;
         }else if (tok=="bdt") {                                             // alternative BDT threshold
             commands.Tokenize(tok, from, "[ \t;=:]");
             alter_BDT = tok.Atof();
+        }else if (tok=="eff") {                                             // alternative BDT threshold @ target eff
+            commands.Tokenize(tok, from, "[ \t;=:]");
+            alter_eff = tok.Atof();
         }else if (tok=="ws_valid") {                                        // set source model workspace
             commands.Tokenize(tok, from, "[ \t;=:]");
             file_valid = tok;
@@ -1453,35 +1611,48 @@ void bmm4validation(TString commands = "")
         wspace->import(Tau);
         wspace->import(TauRes);
         wspace->import(Weight);
+        
+        if (alter_eff>=0. && alter_BDT<-1.) {
+            alter_BDT = EffBDTConvertion(select_proc, select_cat, alter_BDT, alter_eff);
+            alter_BDT = round(alter_BDT*10000.)/10000.;
+            cout << ">>> Set target efficiency to " << alter_eff << endl;
+            cout << ">>> Set alter_BDT to " << alter_BDT << endl;
+        }
+        if (alter_eff<-1. && alter_BDT>-1.) {
+            alter_eff = EffBDTConvertion(select_proc, select_cat, alter_BDT, alter_eff);
+            alter_eff = round(alter_eff*10000.)/10000.;
+            cout << ">>> Set alter_BDT to " << alter_BDT << endl;
+            cout << ">>> The target efficiency is estimated to be " << alter_eff << endl;
+        }
     
         if (do_tausplot_mcstudy) {
             // rebuild the efficiency & resolution models
-            PrepareLifetimeResolutionModel(wspace, select_proc+":triple", select_era, alter_BDT);
-            PrepareLifetimeEfficiencyModel(wspace, select_proc+":threshold", select_era, alter_BDT);
+            PrepareLifetimeResolutionModel(wspace, select_proc+":triple", select_cat, alter_BDT);
+            PrepareLifetimeEfficiencyModel(wspace, select_proc+":threshold", select_cat, alter_BDT);
             
             // run MC study
-            PerformMCTauSPlotStudy(wspace,select_proc+":"+select_type, select_era, alter_BDT);
+            PerformMCTauSPlotStudy(wspace,select_proc+":"+select_type, select_cat, alter_BDT);
         }
     
         if (do_tausplot_datastudy) {
             // rebuild the efficiency & resolution models
-            PrepareLifetimeResolutionModel(wspace, select_proc+":triple", select_era, alter_BDT);
-            PrepareLifetimeEfficiencyModel(wspace, select_proc+":threshold", select_era, alter_BDT);
+            PrepareLifetimeResolutionModel(wspace, select_proc+":triple", select_cat, alter_BDT);
+            PrepareLifetimeEfficiencyModel(wspace, select_proc+":threshold", select_cat, alter_BDT);
 
             // run data study
-            PerformBuDataTauSPlotStudy(wspace, select_proc, select_era, alter_BDT);
+            PerformBuDataTauSPlotStudy(wspace, select_proc, select_cat, alter_BDT);
             
             // rebuild the efficiency model w/ correction
-            //PrepareLifetimeEfficiencyCorrection(wspace, select_proc, select_era);
-            //PrepareLifetimeEfficiencyModel(wspace, select_proc+":threshold"+":taucorr", select_era, alter_BDT);
+            //PrepareLifetimeEfficiencyCorrection(wspace, select_proc, select_cat);
+            //PrepareLifetimeEfficiencyModel(wspace, select_proc+":threshold"+":taucorr", select_cat, alter_BDT);
             
             // run data study again
-            //PerformBuDataTauSPlotStudy(wspace, select_proc+":taucorr", select_era, alter_BDT);
+            //PerformBuDataTauSPlotStudy(wspace, select_proc+":taucorr", select_cat, alter_BDT);
         }
         
         if (do_tausplot_correction) {
             //for (TString era : bmm4::eras) {
-            for (TString era : {"2016BF","2016GH"}) {
+            for (TString era : {"2016BFs01","2016GHs01"}) {
                 // rebuild the efficiency & resolution models
                 PrepareLifetimeResolutionModel(wspace, select_proc+":triple", era, alter_BDT);
                 PrepareLifetimeEfficiencyModel(wspace, select_proc+":threshold", era, alter_BDT);
