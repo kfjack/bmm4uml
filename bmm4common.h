@@ -76,7 +76,7 @@ const TString binsetup_parameter = "input/binsetup_bdtcut_bestbslife.tex";
 #define NCPU                        1
 #define MC_EVENT_LIMIT              200000
 #define USING_MINUIT2               0
-#define ENABLE_CONVERGE_PROTECTION  0
+#define ENABLE_CONVERGE_PROTECTION  1
 
 // variables that are essential, included in the reduced minos fit & ploting
 const vector<TString> POI_list = {"BF_bs", "BF_bd", "dblmu_corr_scale", "EffTau_bs"};
