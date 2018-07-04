@@ -428,6 +428,15 @@ void PrepareBMM4SubVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0
         effratio_bs_err += pow(values[3],2); // Bs->mumu candidate
         effratio_bd_err += pow(values[4],2); // Bd->mumu candidate
         
+        // Adding effective lifetime correction on efficiencies & errors
+        keys.clear();
+        keys.push_back(Form("%s:effTau_efficienecy_correction:val",cat.id.Data())); // correction factor
+        keys.push_back(Form("%s:effTau_efficienecy_correction:sys",cat.id.Data())); // systematic uncertainty
+        ReadValuesFromTex(binsetup_parameter,keys,values);
+        effratio_bs *= values[0];
+        effratio_bs_err += pow(values[1],2);
+        
+        // convert relative error to absolute error
         effratio_bs_err = sqrt(effratio_bs_err)*effratio_bs;
         effratio_bd_err = sqrt(effratio_bd_err)*effratio_bd;
         
@@ -448,9 +457,6 @@ void PrepareBMM4SubVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0
             N_peak.AddVar(var);
         }
         
-        // ISSUE: hot fix for too small uncertainty?
-        //if (N_peak.etot<N_peak.val*0.5) N_peak.etot = N_peak.val*0.5;
-        
         BuildLognormalConstaint(wspace, Form("N_peak_%s",cat.id.Data()),N_peak.val,1.+N_peak.etot/N_peak.val);
         
         // semileptonic background
@@ -467,9 +473,6 @@ void PrepareBMM4SubVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0
             N_semi.AddVar(var);
         }
         
-        // ISSUE: hot fix for too small uncertainty?
-        //if (N_semi.etot<N_semi.val*0.5) N_semi.etot = N_semi.val*0.5;
-        
         BuildLognormalConstaint(wspace, Form("N_semi_%s",cat.id.Data()),N_semi.val,1.+N_semi.etot/N_semi.val);
         
         // h2mu background
@@ -485,9 +488,6 @@ void PrepareBMM4SubVariables(RooWorkspace* wspace, RooWorkspace* wspace_base = 0
             cout << ">>> Expected yield for " << cat.id << ": " << bmm4::texlabels[idx_sample] << ": " << var.val << " +- " << var.estat << " +- " << var.esyst << endl;
             N_h2mu.AddVar(var);
         }
-        
-        // ISSUE: hot fix for too small uncertainty?
-        //if (N_h2mu.etot<N_h2mu.val*0.5) N_h2mu.etot = N_h2mu.val*0.5;
         
         BuildLognormalConstaint(wspace, Form("N_h2mu_%s",cat.id.Data()),N_h2mu.val,1.+N_h2mu.etot/N_h2mu.val);
         
@@ -1464,6 +1464,10 @@ void BuildPeakMassPDF(RooWorkspace* wspace, TString key, RooDataSet *rds)
     RooRealVar CoeffGauss(Form("CoeffGauss_%s",key.Data()), "", 0.5, 0., 1.);
     
     RooGaussian Gauss(Form("Gauss_%s",key.Data()), "", *ScaledMass, Mean, Sigma);
+    
+    // add a prefit to stablize the fit
+    Gauss.fitTo(*rds, Extended(false), SumW2Error(true), NumCPU(NCPU), Hesse(false));
+    
     RooCBShape CB(Form("CB_%s",key.Data()), "", *ScaledMass, Mean, Sigma2, Alpha, Enne);
     
     RooAddPdf CBPlusGau(Form("CBPlusGau_%s",key.Data()), "", RooArgList(Gauss, CB),  CoeffGauss);

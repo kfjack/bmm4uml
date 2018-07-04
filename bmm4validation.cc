@@ -930,6 +930,360 @@ void PerformMCTauSPlotStudy(RooWorkspace *wspace, TString opt = "bsmm:reco", TSt
 
 // ----------------------------------------------------
 // available options:
+// bsmm      - test with standard B->mumu MC
+// bsmmXX    - test with B->mumu MC, generated with different lifetime
+// --
+// genonly   - fit to pure generated decay time
+// geneff    - fit to generated decay time, with efficiency correction
+// reco      - fit to reco decay time
+//
+// NOTE: the "target_cat" can be exactly the category ID (e.g. 2016BFs01_0_0), or the inclusive name of era (2016BFs01).
+//
+void PerformAlterMCTauSPlotStudy(RooWorkspace *wspace, TString opt = "bsmm35:reco", TString target_cat = "2016BFs01", double alter_BDT = -2.)
+{
+    cout << ">>> PerformAlterMCTauSPlotStudy() start" << endl;
+    
+    TString tag, filename, treename, filename_eff, proc;
+    
+    if (opt.Contains("bsmm35")) proc = "bsmm35";
+    else if (opt.Contains("bsmm40")) proc = "bsmm40";
+    else if (opt.Contains("bsmm45")) proc = "bsmm45";
+    else if (opt.Contains("bsmm50")) proc = "bsmm50";
+    else if (opt.Contains("bsmm55")) proc = "bsmm55";
+    else if (opt.Contains("bsmm60")) proc = "bsmm60";
+    else if (opt.Contains("bsmm65")) proc = "bsmm65";
+    else if (opt.Contains("bsmm66")) proc = "bsmm66";
+    else if (opt.Contains("bsmm67")) proc = "bsmm67";
+    else if (opt.Contains("bsmm68")) proc = "bsmm68";
+    else if (opt.Contains("bsmm69")) proc = "bsmm69";
+    else if (opt.Contains("bsmm70")) proc = "bsmm70";
+    else if (opt.Contains("bsmm75")) proc = "bsmm75";
+    else if (opt.Contains("bsmm80")) proc = "bsmm80";
+    else if (opt.Contains("bsmm")) proc = "bsmm";
+    else {
+        cout << ">>> Undefined option: " << opt << endl;
+        return;
+    }
+    
+    treename = "events";
+    tag = Form("bsmm_%s", target_cat.Data());
+    
+    TString target_era = target_cat;
+    for (auto& cat: CatMan.cats)
+        if (cat.id == target_cat) target_era = cat.era; // retreive the era name if the given target_cat is exactly the category ID
+    
+    filename = Form("input/bmm4/mini%s-%sMc.root",target_era.Data(),proc.Data());
+    filename_eff = Form("input/bmm4/eff%s-%sMc.root",target_era.Data(),proc.Data());
+    
+    TChain *events = new TChain(treename);
+    exist_protection(filename);
+    events->Add(filename);
+    
+    TChain *effTree = new TChain("effTree");
+    //exist_protection(filename_eff);
+    effTree->Add(filename_eff);
+    
+    double m_t, me_t, pt_t, tau_t, taue_t, gtau_t, bdt_t;
+    int chan_t;
+    bool gmuid_t, cnc_t, tos_t;
+    
+    events->SetBranchAddress("m", &m_t);
+    events->SetBranchAddress("me", &me_t);
+    events->SetBranchAddress("pt", &pt_t);
+    events->SetBranchAddress("tau", &tau_t);
+    events->SetBranchAddress("taue", &taue_t);
+    events->SetBranchAddress("gtau", &gtau_t);
+    events->SetBranchAddress("bdt", &bdt_t);
+    events->SetBranchAddress("chan", &chan_t);
+    events->SetBranchAddress("gmuid", &gmuid_t);
+    events->SetBranchAddress("cnc", &cnc_t);
+    events->SetBranchAddress("tos", &tos_t);
+    
+    float effgtau_t;
+    
+    effTree->SetBranchAddress("gtau", &effgtau_t);
+    
+    // EffTau model
+    RooRealVar *Tau = wspace->var("Tau");
+    
+    RooResolutionModel *TauRes_Model = (RooResolutionModel*)wspace->obj(Form("TauRes_Model_%s",tag.Data()));
+    RooFormulaVar *TauEff_Model = (RooFormulaVar*)wspace->obj(Form("TauEff_Model_%s",tag.Data()));
+    
+    RooRealVar EffTau("EffTau","",1.6,0.1,5.0);
+    RooDecay RawDecay_reco("RawDecay_reco","",*Tau,EffTau,*TauRes_Model,RooDecay::SingleSided);
+    RooEffProd Tau_pdf_reco("Tau_pdf_reco","",RawDecay_reco,*TauEff_Model);
+    
+    RooTruthModel TauRes_TruthModel("TauRes_TruthModel","",*Tau); // ideal model
+    RooDecay Tau_pdf_genonly("Tau_pdf_genonly","",*Tau,EffTau,TauRes_TruthModel,RooDecay::SingleSided);
+    
+    RooEffProd Tau_pdf_geneff("Tau_pdf_geneff","",Tau_pdf_genonly,*TauEff_Model);
+    
+    RooAbsPdf *Tau_pdf = &Tau_pdf_reco;
+    
+    if (opt.Contains("geneff")) Tau_pdf = &Tau_pdf_geneff;
+    
+    // place holder for sPlot
+    TH1D *h_tau = new TH1D("h_tau", "", Tau_bins.size()-1, Tau_bins.data());
+    //TH1D *h_tau = new TH1D("h_tau", "", (int)((Tau_bound[1]-Tau_bound[0])*10.), Tau_bound[0], Tau_bound[1]);
+    h_tau->Sumw2();
+    
+    if (opt.Contains("genonly")) { // generater tau
+        for (int evt=0; evt<effTree->GetEntries();evt++) {
+            effTree->GetEntry(evt);
+            h_tau->Fill(effgtau_t*1E12);
+        }
+        Tau_pdf = &Tau_pdf_genonly;
+    }else {
+        RooDataSet *rds = new RooDataSet("rds","",RooArgSet(*Tau));
+        
+        for (int evt=0; evt<events->GetEntries();evt++) {
+            events->GetEntry(evt);
+            
+            if (m_t < Mass_bound[0] || m_t > Mass_bound[1] || !gmuid_t || !tos_t) continue;
+            if (me_t/m_t < ReducedMassRes_bound[0] || me_t/m_t > ReducedMassRes_bound[1]) continue;
+            if (bdt_t < -1.) continue;
+            
+            if (target_cat==target_era) { // inclusive era selection
+                int index = CatMan.index(target_era, chan_t, bdt_t);
+                
+                if (alter_BDT>-1.) {
+                    if (bdt_t<alter_BDT) continue;
+                }else if (index<0) continue;
+                
+            }else { // exclusive category ID selection
+                
+                bool selected = false;
+                for (auto& cat: CatMan.cats) {
+                    if (cat.id != target_cat) continue;
+                    if (alter_BDT<-1. && cat.region == chan_t &&
+                        bdt_t>=cat.bdt_min && bdt_t<cat.bdt_max) selected = true;
+                    if (alter_BDT>-1. && cat.region == chan_t &&
+                        bdt_t>=alter_BDT) selected = true;
+                    
+                }
+                if (!selected) continue;
+            }
+            
+            // tau cuts
+            if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
+            if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
+            
+            if (opt.Contains("geneff")) Tau->setVal(gtau_t*1E12);
+            else Tau->setVal(tau_t*1E12);
+            rds->add(RooArgSet(*Tau));
+        }
+        cout << ">>> " << rds->numEntries() << " MC events to be included in the fit" << endl;
+        
+        {
+            for (int evt=0; evt<rds->numEntries(); evt++) {
+                const RooArgSet* arg = rds->get(evt);
+                h_tau->Fill(arg->getRealValue("Tau"));
+            }
+        }
+        
+        delete rds;
+    }
+    
+    // Binned weighted likelihood fit w/ PDF bin integration
+    RooFitResult *res1 = NULL, *res2 = NULL;
+    Fit_sPlot(h_tau, Tau_pdf, Tau, &EffTau, &res1, &res2);
+    
+    // Projection
+    RooPlot* frame = Tau->frame(Title(" "));
+    h_tau->SetMarkerStyle(1);
+    h_tau->SetLineColor(kBlack);
+    RooDataHist *h_tau_data = new RooDataHist("h_tau_data", "", RooArgList(*Tau), h_tau);
+    h_tau_data->plotOn(frame,MarkerStyle(1),LineColor(kBlack));
+    
+    Tau_pdf->plotOn(frame, DrawOption("L"), LineColor(kBlue), LineWidth(2), LineStyle(1), NumCPU(NCPU));
+    
+    TCanvas* canvas = new TCanvas("canvas", "", 600, 600);
+    canvas->SetMargin(0.14,0.06,0.13,0.07);
+    
+    frame->GetYaxis()->SetTitleOffset(1.48);
+    frame->GetYaxis()->SetTitle("Entries");
+    frame->GetXaxis()->SetTitleOffset(1.15);
+    frame->GetXaxis()->SetLabelOffset(0.01);
+    frame->GetXaxis()->SetTitle("Decay time [ps]");
+    frame->GetXaxis()->SetTitleSize(0.043);
+    frame->GetYaxis()->SetTitleSize(0.043);
+    frame->SetStats(false);
+    frame->Draw("E");
+    
+    TLatex tex;
+    tex.SetTextFont(42);
+    tex.SetTextSize(0.035);
+    tex.SetTextAlign(11);
+    tex.SetNDC();
+    tex.DrawLatex(0.14,0.94,"CMS Preliminary");
+    
+    TLine lin;
+    lin.SetLineColor(kGray+1);
+    lin.SetLineWidth(2);
+    lin.SetLineStyle(7);
+    lin.DrawLine(1.,0.,12.,0.);
+    
+    canvas->Update();
+    
+    TLegend *leg1 = new TLegend(0.50,0.86,0.91,0.91);
+    leg1->SetNColumns(1);
+    leg1->SetFillColor(kWhite);
+    leg1->SetLineColor(kWhite);
+    leg1->AddEntry(h_tau, "B_{s} #rightarrow #mu^{+}#mu^{-} MC", "lep");
+    leg1->Draw();
+    
+    TString pdf_filename = Form("fig/tau_splot_%s_%s_mc_reco.pdf",proc.Data(),target_cat.Data());
+    
+    canvas->Print(pdf_filename);
+    
+    delete h_tau_data;
+    delete h_tau;
+    delete leg1;
+    delete frame;
+    delete canvas;
+    delete res1;
+    delete res2;
+    delete events;
+}
+
+// ----------------------------------------------------
+// available options:
+// bsmm      - test with standard B->mumu MC
+// bsmmXX    - test with B->mumu MC, generated with different lifetime
+//
+// NOTE: the "target_cat" can be exactly the category ID (e.g. 2016BFs01_0_0), or the inclusive name of era (2016BFs01).
+//
+void PerformAbsoluteEfficiencyStudy(RooWorkspace *wspace, TString opt = "bsmm35:reco", TString target_cat = "2016BFs01", double alter_BDT = -2., double alter_effTau = 1.472)
+{
+    cout << ">>> PerformAlterMCTauSPlotStudy() start" << endl;
+    
+    TString tag, filename, treename, filename_eff, proc;
+    double source_effTau = 1.472;
+    
+    if (opt.Contains("bsmm35")) { proc = "bsmm35"; source_effTau=1.35; }
+    else if (opt.Contains("bsmm40")) { proc = "bsmm40"; source_effTau=1.40; }
+    else if (opt.Contains("bsmm45")) { proc = "bsmm45"; source_effTau=1.45; }
+    else if (opt.Contains("bsmm50")) { proc = "bsmm50"; source_effTau=1.50; }
+    else if (opt.Contains("bsmm55")) { proc = "bsmm55"; source_effTau=1.50; }
+    else if (opt.Contains("bsmm60")) { proc = "bsmm60"; source_effTau=1.60; }
+    else if (opt.Contains("bsmm65")) { proc = "bsmm65"; source_effTau=1.65; }
+    else if (opt.Contains("bsmm66")) { proc = "bsmm66"; source_effTau=1.66; }
+    else if (opt.Contains("bsmm67")) { proc = "bsmm67"; source_effTau=1.67; }
+    else if (opt.Contains("bsmm68")) { proc = "bsmm68"; source_effTau=1.68; }
+    else if (opt.Contains("bsmm69")) { proc = "bsmm69"; source_effTau=1.69; }
+    else if (opt.Contains("bsmm70")) { proc = "bsmm70"; source_effTau=1.70; }
+    else if (opt.Contains("bsmm75")) { proc = "bsmm75"; source_effTau=1.75; }
+    else if (opt.Contains("bsmm80")) { proc = "bsmm80"; source_effTau=1.80; }
+    else if (opt.Contains("bsmm")) proc = "bsmm";
+    else {
+        cout << ">>> Undefined option: " << opt << endl;
+        return;
+    }
+    
+    treename = "events";
+    tag = Form("bsmm_%s", target_cat.Data());
+    
+    TString target_era = target_cat;
+    for (auto& cat: CatMan.cats)
+        if (cat.id == target_cat) target_era = cat.era; // retreive the era name if the given target_cat is exactly the category ID
+    
+    filename = Form("input/bmm4/mini%s-%sMc.root",target_era.Data(),proc.Data());
+    filename_eff = Form("input/bmm4/eff%s-%sMc.root",target_era.Data(),proc.Data());
+    
+    TChain *events = new TChain(treename);
+    exist_protection(filename);
+    events->Add(filename);
+    
+    TChain *effTree = new TChain("effTree");
+    exist_protection(filename_eff);
+    effTree->Add(filename_eff);
+    
+    double m_t, me_t, pt_t, tau_t, taue_t, gtau_t, bdt_t;
+    int chan_t;
+    bool gmuid_t, cnc_t, tos_t;
+    
+    events->SetBranchAddress("m", &m_t);
+    events->SetBranchAddress("me", &me_t);
+    events->SetBranchAddress("pt", &pt_t);
+    events->SetBranchAddress("tau", &tau_t);
+    events->SetBranchAddress("taue", &taue_t);
+    events->SetBranchAddress("gtau", &gtau_t);
+    events->SetBranchAddress("bdt", &bdt_t);
+    events->SetBranchAddress("chan", &chan_t);
+    events->SetBranchAddress("gmuid", &gmuid_t);
+    events->SetBranchAddress("cnc", &cnc_t);
+    events->SetBranchAddress("tos", &tos_t);
+    
+    float effgtau_t;
+    
+    effTree->SetBranchAddress("gtau", &effgtau_t);
+    
+    RooRealVar *Tau = wspace->var("Tau");
+    Tau->Print();
+    
+    double source_denominator = effTree->GetEntries();
+    double target_denominator = 0.;
+    for (int evt=0; evt<effTree->GetEntries();evt++) {
+        effTree->GetEntry(evt);
+        
+        double weight = exp(-((double)effgtau_t)*1E12/alter_effTau)/exp(-((double)effgtau_t)*1E12/source_effTau);
+        target_denominator += weight;
+    }
+    
+    double source_numerator = 0.;
+    double target_numerator = 0.;
+    for (int evt=0; evt<events->GetEntries();evt++) {
+        events->GetEntry(evt);
+            
+        if (m_t < Mass_bound[0] || m_t > Mass_bound[1] || !gmuid_t || !tos_t) continue;
+        if (me_t/m_t < ReducedMassRes_bound[0] || me_t/m_t > ReducedMassRes_bound[1]) continue;
+        if (bdt_t < -1.) continue;
+            
+        if (target_cat==target_era) { // inclusive era selection
+            int index = CatMan.index(target_era, chan_t, bdt_t);
+                
+            if (alter_BDT>-1.) {
+                if (bdt_t<alter_BDT) continue;
+            }else if (index<0) continue;
+                
+        }else { // exclusive category ID selection
+                
+            bool selected = false;
+            for (auto& cat: CatMan.cats) {
+                if (cat.id != target_cat) continue;
+                if (alter_BDT<-1. && cat.region == chan_t &&
+                    bdt_t>=cat.bdt_min && bdt_t<cat.bdt_max) selected = true;
+                if (alter_BDT>-1. && cat.region == chan_t &&
+                    bdt_t>=alter_BDT) selected = true;
+            }
+            if (!selected) continue;
+        }
+            
+        // tau cuts
+        if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
+        if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
+        
+        double weight = exp((1./source_effTau-1./alter_effTau)*gtau_t*1E12);
+        
+        source_numerator += 1.;
+        target_numerator += weight;
+    }
+    
+    double source_efficiency = source_numerator / source_denominator;
+    double source_error      = sqrt(source_denominator*source_efficiency*(1-source_efficiency))/source_denominator;
+    double target_efficiency = target_numerator / target_denominator;
+    double target_error      = sqrt(source_denominator*target_efficiency*(1-target_efficiency))/source_denominator;
+    double correction = target_efficiency/source_efficiency;
+    
+    cout << ">>> Obtained source efficiency: " << source_efficiency*100. << " +- " << source_error*100. << " (%)" << endl;
+    cout << ">>> Obtained target efficiency: " << target_efficiency*100. << " +- " << target_error*100. << " (%)" << endl;
+    cout << ">>> correction: " << correction << endl;
+    
+    cout << ">>> Weight function: exp((1/" << source_effTau << "-1/" << alter_effTau << ")*t*1E12)/" << target_denominator << endl;
+}
+
+// ----------------------------------------------------
+// available options:
 // bupsik    - test with B->J/psi K+ data
 // --
 // taucorr   - apply tau-dependent correction
@@ -1520,8 +1874,11 @@ void bmm4validation(TString commands = "")
 {
     // -----------------------------------------------------------
     // parse the commands
-    bool do_tausplot_mcstudy = false, do_tausplot_datastudy = false, do_tausplot_correction = false;
+    bool do_tausplot_mcstudy = false, do_tausplot_altermcstudy = false;
+    bool do_tausplot_datastudy = false, do_tausplot_correction = false;
+    bool do_tausplot_effstudy = false;
     double alter_BDT = -2., alter_eff = -2.;
+    double alter_effTau = 1.472;
     TString select_cat = "2016BFs01";
     TString select_proc = "bsmm";
     TString select_type = "reco";
@@ -1532,12 +1889,15 @@ void bmm4validation(TString commands = "")
     cout << ">>> -------------------------" << endl;
     cout << ">>> commands:" << endl;
     cout << ">>> - tausplot_mcstudy                   : perform MC study for lifetime fit" << endl;
+    cout << ">>> - tausplot_altermcstudy              : perform MC study for lifetime fit (using alternative samples)" << endl;
     cout << ">>> - tausplot_datastudy                 : perform data study for lifetime fit (J/psi K+ only)" << endl;
     cout << ">>> - tausplot_correction                : compute correction factors for each year/era" << endl;
+    cout << ">>> - tausplot_effstudy                  : compute corrected selection efficiency with weights" << endl;
     cout << ">>> - cat=[2016BFs01]                    : set the target category id or era" << endl;
     cout << ">>> - proc=[bsmm]                        : set the target process, Bs->mumu (bsmm) or B+->J/psiK+ (bupsik)" << endl;
     cout << ">>> - bdt=[-2.]                          : alternative BDT threshold, -2: using the category definition." << endl;
     cout << ">>> - eff=[-2.]                          : alternative BDT threshold, set at target efficiency" << endl;
+    cout << ">>> - efftau=[1.472]                     : alternative effective lifetime, for efficiency calculation" << endl;
     cout << ">>> - type=[reco]                        : set the target type " << endl;
     cout << ">>>         genonly   - fit to pure generated decay time" << endl;
     cout << ">>>         geneff    - fit to generated decay time, with efficiency correction" << endl;
@@ -1551,8 +1911,10 @@ void bmm4validation(TString commands = "")
     Ssiz_t from = 0;
     while(commands.Tokenize(tok, from, "[ \t;=:]")) {
              if (tok=="tausplot_mcstudy") do_tausplot_mcstudy = true;       // perform MC study for lifetime fit
+        else if (tok=="tausplot_altermcstudy") do_tausplot_altermcstudy = true; // perform MC study for lifetime fit w/ alternative samples
         else if (tok=="tausplot_datastudy") do_tausplot_datastudy = true;   // perform data study for lifetime fit, J/psi K+ only
         else if (tok=="tausplot_correction") do_tausplot_correction = true; // compute correction factors for each year/era
+        else if (tok=="tausplot_effstudy") do_tausplot_effstudy = true;     // compute corrected selection efficiency with weights
         else if (tok=="cat") {                                              // set the target cat
             commands.Tokenize(tok, from, "[ \t;=:]");
             select_cat = tok;
@@ -1562,6 +1924,9 @@ void bmm4validation(TString commands = "")
         }else if (tok=="eff") {                                             // alternative BDT threshold @ target eff
             commands.Tokenize(tok, from, "[ \t;=:]");
             alter_eff = tok.Atof();
+        }else if (tok=="efftau") {                                          // alternative effective lifetime value
+            commands.Tokenize(tok, from, "[ \t;=:]");
+            alter_effTau = tok.Atof();
         }else if (tok=="ws_valid") {                                        // set source model workspace
             commands.Tokenize(tok, from, "[ \t;=:]");
             file_valid = tok;
@@ -1595,7 +1960,7 @@ void bmm4validation(TString commands = "")
     if (CONFIG_BMM4) CatMan.RegisterBMM4Categories();
     CatMan.Print();
     
-    if (do_tausplot_mcstudy || do_tausplot_datastudy || do_tausplot_correction) {
+    if (do_tausplot_mcstudy || do_tausplot_altermcstudy || do_tausplot_datastudy || do_tausplot_correction || do_tausplot_effstudy) {
     
         // -----------------------------------------------------------
         // Create the shared workspace
@@ -1632,6 +1997,19 @@ void bmm4validation(TString commands = "")
             
             // run MC study
             PerformMCTauSPlotStudy(wspace,select_proc+":"+select_type, select_cat, alter_BDT);
+        }
+        
+        if (do_tausplot_altermcstudy) {
+            // rebuild the efficiency & resolution models
+            PrepareLifetimeResolutionModel(wspace, "bsmm:triple", select_cat, alter_BDT);
+            PrepareLifetimeEfficiencyModel(wspace, "bsmm:threshold", select_cat, alter_BDT);
+            
+            // run MC study
+            PerformAlterMCTauSPlotStudy(wspace, select_proc+":"+select_type, select_cat, alter_BDT);
+        }
+        
+        if (do_tausplot_effstudy) {
+            PerformAbsoluteEfficiencyStudy(wspace, select_proc+":"+select_type, select_cat, alter_BDT, alter_effTau);
         }
     
         if (do_tausplot_datastudy) {

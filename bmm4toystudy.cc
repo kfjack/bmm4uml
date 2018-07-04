@@ -1133,7 +1133,6 @@ void ProduceDemoSubPlots(RooWorkspace *wspace)
     }
     
     for (auto& cat: CatMan.cats) {
-        
         RooRealVar *Mass = wspace->var("Mass");
         
         TString cut = Form("GlobalCat==%d",cat.index);
@@ -1730,7 +1729,7 @@ void bmm4toystudy(TString commands = "")
             ApplyYieldScale(wspace_gen, yield_scale);
         
         ProduceDemoSubPlots(wspace_gen);
-        ProduceDemoTauSPlot(wspace_gen);
+        //ProduceDemoTauSPlot(wspace_gen);
         delete fin_gen;
     }
     

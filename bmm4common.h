@@ -66,9 +66,17 @@ using namespace std;
 #define CONFIG_BMM3     0
 #define CONFIG_BMM4     1
 
-#define NCPU            1
-#define MC_EVENT_LIMIT  200000
-#define USING_MINUIT2   0
+// global binning setup (enable one of these below, set the name of parameter file)
+#define BINSETUP_BDTCUT_REF         0
+#define BINSETUP_BDTCUT_BESTBS      0
+#define BINSETUP_BDTCUT_BESTBSLIFE  1
+#define BINSETUP_BDTCAT_BESTBS      0
+const TString binsetup_parameter = "input/binsetup_bdtcut_bestbslife.tex";
+
+#define NCPU                        1
+#define MC_EVENT_LIMIT              200000
+#define USING_MINUIT2               0
+#define ENABLE_CONVERGE_PROTECTION  0
 
 // variables that are essential, included in the reduced minos fit & ploting
 const vector<TString> POI_list = {"BF_bs", "BF_bd", "dblmu_corr_scale", "EffTau_bs"};
@@ -197,73 +205,59 @@ public:
             for (int j = 0; j < run1_index_max[i]; j++)
                 RegisterCategory(i<=1?"2011":"2012", i%2, j, run1_bdt_bins[i][j], run1_bdt_bins[i][j+1]);
     }
+    
     void RegisterBMM4Categories() {
         
-        /*
-        // BDT-cut ref
-        RegisterCategory("2011s01", 0, 0, 0.290, 1.00);
-        RegisterCategory("2011s01", 1, 0, 0.290, 1.00);
-        RegisterCategory("2012s01", 0, 0, 0.360, 1.00);
-        RegisterCategory("2012s01", 1, 0, 0.380, 1.00);
-        RegisterCategory("2016BFs01", 0, 0, 0.300, 1.00);
-        RegisterCategory("2016BFs01", 1, 0, 0.440, 1.00);
-        RegisterCategory("2016GHs01", 0, 0, 0.320, 1.00);
-        RegisterCategory("2016GHs01", 1, 0, 0.380, 1.00);*/
-        
-        // BDT-cut
-        RegisterCategory("2011s01", 0, 0, 0.34, 1.00);
-        RegisterCategory("2011s01", 1, 0, 0.23, 1.00);
-        RegisterCategory("2012s01", 0, 0, 0.34, 1.00);
-        RegisterCategory("2012s01", 1, 0, 0.35, 1.00);
-        RegisterCategory("2016BFs01", 0, 0, 0.28, 1.00);
-        RegisterCategory("2016BFs01", 1, 0, 0.28, 1.00);
-        RegisterCategory("2016GHs01", 0, 0, 0.26, 1.00);
-        RegisterCategory("2016GHs01", 1, 0, 0.29, 1.00);
-        
-        /*
-        // BDT-cat 1
-        RegisterCategory("2011s01",   0, 0, 0.25, 0.38);
-        RegisterCategory("2011s01",   1, 0, 0.21, 0.39);
-        RegisterCategory("2012s01",   0, 0, 0.28, 0.37);
-        RegisterCategory("2012s01",   1, 0, 0.32, 0.47);
-        RegisterCategory("2016BFs01", 0, 0, 0.19, 0.33);
-        RegisterCategory("2016BFs01", 1, 0, 0.19, 0.32);
-        RegisterCategory("2016GHs01", 0, 0, 0.23, 0.34);
-        RegisterCategory("2016GHs01", 1, 0, 0.21, 0.36);
-        RegisterCategory("2011s01",   0, 1, 0.38, 1.00);
-        RegisterCategory("2011s01",   1, 1, 0.39, 1.00);
-        RegisterCategory("2012s01",   0, 1, 0.37, 1.00);
-        RegisterCategory("2012s01",   1, 1, 0.47, 1.00);
-        RegisterCategory("2016BFs01", 0, 1, 0.33, 1.00);
-        RegisterCategory("2016BFs01", 1, 1, 0.32, 1.00);
-        RegisterCategory("2016GHs01", 0, 1, 0.34, 1.00);
-        RegisterCategory("2016GHs01", 1, 1, 0.36, 1.00);*/
-        
-        /*
-        // BDT-cat 2
-        RegisterCategory("2011s01",   0, 0, 0.25, 0.38);
-        RegisterCategory("2011s01",   1, 0, 0.21, 0.39);
-        RegisterCategory("2011s01",   0, 1, 0.38, 1.00);
-        RegisterCategory("2011s01",   1, 1, 0.39, 1.00);
-        RegisterCategory("2012s01",   0, 0, 0.25, 0.32);
-        RegisterCategory("2012s01",   1, 0, 0.25, 0.35);
-        RegisterCategory("2016BFs01", 0, 0, 0.14, 0.23);
-        RegisterCategory("2016BFs01", 1, 0, 0.18, 0.31);
-        RegisterCategory("2016GHs01", 0, 0, 0.17, 0.26);
-        RegisterCategory("2016GHs01", 1, 0, 0.19, 0.30);
-        RegisterCategory("2012s01",   0, 1, 0.32, 0.38);
-        RegisterCategory("2012s01",   1, 1, 0.35, 0.48);
-        RegisterCategory("2016BFs01", 0, 1, 0.23, 0.34);
-        RegisterCategory("2016BFs01", 1, 1, 0.31, 0.44);
-        RegisterCategory("2016GHs01", 0, 1, 0.26, 0.35);
-        RegisterCategory("2016GHs01", 1, 1, 0.30, 0.40);
-        RegisterCategory("2012s01",   0, 2, 0.38, 1.00);
-        RegisterCategory("2012s01",   1, 2, 0.48, 1.00);
-        RegisterCategory("2016BFs01", 0, 2, 0.34, 1.00);
-        RegisterCategory("2016BFs01", 1, 2, 0.44, 1.00);
-        RegisterCategory("2016GHs01", 0, 2, 0.35, 1.00);
-        RegisterCategory("2016GHs01", 1, 2, 0.40, 1.00);*/
-
+        // BDT-cut : reference
+        if (BINSETUP_BDTCUT_REF) {
+            RegisterCategory("2011s01", 0, 0, 0.290, 1.00);
+            RegisterCategory("2011s01", 1, 0, 0.290, 1.00);
+            RegisterCategory("2012s01", 0, 0, 0.360, 1.00);
+            RegisterCategory("2012s01", 1, 0, 0.380, 1.00);
+            RegisterCategory("2016BFs01", 0, 0, 0.300, 1.00);
+            RegisterCategory("2016BFs01", 1, 0, 0.440, 1.00);
+            RegisterCategory("2016GHs01", 0, 0, 0.320, 1.00);
+            RegisterCategory("2016GHs01", 1, 0, 0.380, 1.00);
+        }
+        // BDT-cut : Best Bs significance
+        if (BINSETUP_BDTCUT_BESTBS) {
+            RegisterCategory("2011s01", 0, 0, 0.28, 1.00);
+            RegisterCategory("2011s01", 1, 0, 0.21, 1.00);
+            RegisterCategory("2012s01", 0, 0, 0.34, 1.00);
+            RegisterCategory("2012s01", 1, 0, 0.32, 1.00);
+            RegisterCategory("2016BFs01", 0, 0, 0.30, 1.00);
+            RegisterCategory("2016BFs01", 1, 0, 0.30, 1.00);
+            RegisterCategory("2016GHs01", 0, 0, 0.31, 1.00);
+            RegisterCategory("2016GHs01", 1, 0, 0.38, 1.00);
+        }
+        // BDT-cut : Best Bs lifetime error
+        if (BINSETUP_BDTCUT_BESTBSLIFE) {
+            RegisterCategory("2011s01", 0, 0, 0.22, 1.00);
+            RegisterCategory("2011s01", 1, 0, 0.19, 1.00);
+            RegisterCategory("2012s01", 0, 0, 0.32, 1.00);
+            RegisterCategory("2012s01", 1, 0, 0.32, 1.00);
+            RegisterCategory("2016BFs01", 0, 0, 0.22, 1.00);
+            RegisterCategory("2016BFs01", 1, 0, 0.30, 1.00);
+            RegisterCategory("2016GHs01", 0, 0, 0.22, 1.00);
+            RegisterCategory("2016GHs01", 1, 0, 0.29, 1.00);
+        }
+        // BDT-category : Best Bs significance
+        if (BINSETUP_BDTCAT_BESTBS) {
+            RegisterCategory("2011s01",   0, 0, 0.28, 1.00);
+            RegisterCategory("2011s01",   1, 0, 0.21, 1.00);
+            RegisterCategory("2012s01",   0, 0, 0.27, 0.35);
+            RegisterCategory("2012s01",   0, 1, 0.35, 1.00);
+            RegisterCategory("2012s01",   1, 0, 0.23, 0.32);
+            RegisterCategory("2012s01",   1, 1, 0.32, 1.00);
+            RegisterCategory("2016BFs01", 0, 0, 0.19, 0.30);
+            RegisterCategory("2016BFs01", 0, 1, 0.30, 1.00);
+            RegisterCategory("2016BFs01", 1, 0, 0.19, 0.30);
+            RegisterCategory("2016BFs01", 1, 1, 0.30, 1.00);
+            RegisterCategory("2016GHs01", 0, 0, 0.18, 0.31);
+            RegisterCategory("2016GHs01", 0, 1, 0.31, 1.00);
+            RegisterCategory("2016GHs01", 1, 0, 0.23, 0.38);
+            RegisterCategory("2016GHs01", 1, 1, 0.38, 1.00);
+        }
     }
     
     void Print() {
@@ -296,6 +290,7 @@ public:
 void converge_protection()
 {
     cout << ">>> WARNING: fit does not fully converge!" << endl;
+    if (!ENABLE_CONVERGE_PROTECTION) return;
     cout << ">>> continue? (y/n)" << endl;
     string buffer;
     cin >> buffer;
@@ -363,7 +358,7 @@ void ReadValuesFromPlainText(TString filename, vector<TString> keys, vector<doub
     }
 }
 
-// utilities to read BMM3/4-type fitter data cards (tex files)
+// utilities to read BMM3/4-type data cards (tex files)
 void ReadValuesFromTex(TString filename, vector<TString> keys, vector<double>& values)
 {
     values.assign(keys.size(), 0.);
@@ -390,6 +385,7 @@ void ReadValuesFromTex(TString filename, vector<TString> keys, vector<double>& v
     }
 }
 
+// utilities to read variables from BMM4 data cards (tex files)
 class TexVar {
 public:
     double val, estat, esyst, etot;
@@ -440,7 +436,7 @@ public:
     }
 };
 
-// sPlot fitting tool
+// sPlot fitting tool: bin-likelihood method + bin integrated calculation
 
 TH1D *Fit_hist = NULL;
 RooAbsPdf *Fit_pdf = NULL;
