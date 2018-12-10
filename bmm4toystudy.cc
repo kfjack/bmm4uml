@@ -1725,11 +1725,21 @@ void bmm4toystudy(TString commands = "")
         TFile *fin_gen = new TFile(file_gen);
         RooWorkspace *wspace_gen = (RooWorkspace *)fin_gen->Get("wspace");
         
+        // parameter modifications (gen workspace)
+        for (int idx = 0; idx<(int)set_genpar_names.size(); idx++) {
+            cout << ">>> set gen parameter " << set_genpar_names[idx] << " to " << set_genpar_values[idx] << (set_genpar_states[idx]?" (fixed)":" (floated)") << endl;
+            wspace_gen->var(set_genpar_names[idx])->setVal(set_genpar_values[idx]);
+            wspace_gen->var(set_genpar_names[idx])->setConstant(set_genpar_states[idx]);
+        }
+        
         if (yield_scale!=1.0)
             ApplyYieldScale(wspace_gen, yield_scale);
+        for (int idx=0; idx<(int)offcomponents.size(); idx++) {
+            SwitchOffComponent(wspace_gen, offcomponents[idx]);
+        }
         
         ProduceDemoSubPlots(wspace_gen);
-        //ProduceDemoTauSPlot(wspace_gen);
+        ProduceDemoTauSPlot(wspace_gen);
         delete fin_gen;
     }
     

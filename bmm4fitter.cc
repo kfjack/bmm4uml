@@ -1406,7 +1406,7 @@ void BuildSemiMassPDF(RooWorkspace* wspace, TString key, RooDataSet *rds)
         }
         delete hist;
     }else rds_keys = (RooDataSet*)rds->Clone(Form("Mass_rds_%s",key.Data()));
-    RooKeysPdf Keys(Form("Keys_%s",key.Data()), "", *Mass, *rds_keys, RooKeysPdf::MirrorBoth, 2.5);
+    RooKeysPdf Keys(Form("Keys_%s",key.Data()), "", *Mass, *rds_keys, RooKeysPdf::MirrorBoth, 2.0);
     
     RooProdPdf Mass_pdf(Form("Mass_pdf_%s",key.Data()), "", *ReducedMassRes_pdf, Conditional(Keys, *Mass));
     
@@ -1437,7 +1437,7 @@ void BuildH2muMassPDF(RooWorkspace* wspace, TString key, RooDataSet *rds)
         }
         delete hist;
     }else rds_keys = (RooDataSet*)rds->Clone(Form("Mass_rds_%s",key.Data()));
-    RooKeysPdf Keys(Form("Keys_%s",key.Data()), "", *Mass, *rds_keys, RooKeysPdf::MirrorBoth, 2.5);
+    RooKeysPdf Keys(Form("Keys_%s",key.Data()), "", *Mass, *rds_keys, RooKeysPdf::MirrorBoth, 2.0);
     
     RooProdPdf Mass_pdf(Form("Mass_pdf_%s",key.Data()), "", *ReducedMassRes_pdf, Conditional(Keys, *Mass));
     
