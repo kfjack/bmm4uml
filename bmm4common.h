@@ -8,6 +8,7 @@
 #include <TFileCollection.h>
 #include <TFileInfo.h>
 #include <TH1D.h>
+#include <TH2D.h>
 #include <THStack.h>
 #include <TLatex.h>
 #include <TLegend.h>
@@ -69,27 +70,32 @@ using namespace std;
 // global binning setup (enable one of these below, set the name of parameter file)
 #define BINSETUP_BDTCUT_REF         0
 #define BINSETUP_BDTCUT_BESTBS      0
-#define BINSETUP_BDTCUT_BESTBSLIFE  1
-#define BINSETUP_BDTCAT_BESTBS      0
-const TString binsetup_parameter = "input/binsetup_bdtcut_bestbslife.tex";
+#define BINSETUP_BDTCUT_BESTBSLIFE  0
+#define BINSETUP_BDTCAT_BESTBS      1
+const TString binsetup_parameter = "input/binsetup_bdtcat_bestbs.tex";
 
 #define NCPU                        1
 #define MC_EVENT_LIMIT              200000
 #define USING_MINUIT2               0
-#define ENABLE_CONVERGE_PROTECTION  1
+#define ENABLE_CONVERGE_PROTECTION  0
 
 // variables that are essential, included in the reduced minos fit & ploting
-const vector<TString> POI_list = {"BF_bs", "BF_bd", "dblmu_corr_scale", "EffTau_bs"};
+const vector<TString> POI_list = {"BF_bs", "BF_bd", "dblmu_corr_scale", "TransTau_bs"};
 
-// boundaries for observables
+// define the tau (inverse) transformation
+double _Transform(double tau) { return 1./tau; }
+double _InvTransform(double transtau) { return 1./transtau; }
+
+// boundaries for observables plotting
 const double Mass_bound[2] = {4.9, 5.9};
 const double ReducedMassRes_bound[2] = {0.0009, 0.045};
 const double BDT_bound[2] = {0.1, 1.0};
-const double Tau_bound[2] = {1., 12.}; // in unit of ps
+const double Tau_bound[2] = {1., 11.}; // in unit of ps
 const double TauRes_bound[2] = {0.01, 0.25}; // in unit of ps
+//const double TauRes_bound[2] = {0.003, 2.0}; // in unit of ps
 
 // bin boundries for decay time / decay time resolution sPlot
-const vector<double> Tau_bins = {1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12.};
+const vector<double> Tau_bins = {1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11.};
 const vector<double> TauRes_bins = {
      0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10,
      0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20,
@@ -210,14 +216,14 @@ public:
         
         // BDT-cut : reference
         if (BINSETUP_BDTCUT_REF) {
-            RegisterCategory("2011s01", 0, 0, 0.290, 1.00);
-            RegisterCategory("2011s01", 1, 0, 0.290, 1.00);
-            RegisterCategory("2012s01", 0, 0, 0.360, 1.00);
-            RegisterCategory("2012s01", 1, 0, 0.380, 1.00);
-            RegisterCategory("2016BFs01", 0, 0, 0.300, 1.00);
-            RegisterCategory("2016BFs01", 1, 0, 0.440, 1.00);
-            RegisterCategory("2016GHs01", 0, 0, 0.320, 1.00);
-            RegisterCategory("2016GHs01", 1, 0, 0.380, 1.00);
+            RegisterCategory("2011s01", 0, 0, 0.29, 1.00);
+            RegisterCategory("2011s01", 1, 0, 0.29, 1.00);
+            RegisterCategory("2012s01", 0, 0, 0.36, 1.00);
+            RegisterCategory("2012s01", 1, 0, 0.38, 1.00);
+            RegisterCategory("2016BFs01", 0, 0, 0.30, 1.00);
+            RegisterCategory("2016BFs01", 1, 0, 0.44, 1.00);
+            RegisterCategory("2016GHs01", 0, 0, 0.32, 1.00);
+            RegisterCategory("2016GHs01", 1, 0, 0.38, 1.00);
         }
         // BDT-cut : Best Bs significance
         if (BINSETUP_BDTCUT_BESTBS) {
@@ -449,6 +455,7 @@ double Fit_NLLVar(double)
     
     Fit_obs->setRange("full", Fit_obs->getMin(), Fit_obs->getMax());
     RooAbsReal* area_full = Fit_pdf->createIntegral(*Fit_obs,Range("full"));
+    
     double norm = area_full->getVal();
     delete area_full;
     
@@ -487,14 +494,14 @@ double Fit_NLLVar(double)
     return f;
 }
 
-// h_tau   - input histgram
-// Tau_pdf - fitting PDF
-// Tau     - decay time observable
-// EffTau  - fitting effective lifetime
-// res1    - results for step 1 fit
-// res2    - results for step 2 fit
+// h_tau    - input histgram
+// Tau_pdf  - fitting PDF
+// Tau      - decay time observable
+// TransTau - fitting (transformed) effective lifetime
+// res1     - results for step 1 fit
+// res2     - results for step 2 fit
 //
-void Fit_sPlot(TH1D *h_tau, RooAbsPdf *Tau_pdf, RooRealVar *Tau, RooRealVar *EffTau, RooFitResult **res1, RooFitResult **res2)
+void Fit_sPlot(TH1D *h_tau, RooAbsPdf *Tau_pdf, RooRealVar *Tau, RooRealVar *TransTau, RooFitResult **res1, RooFitResult **res2)
 {
     // Binned weighted likelihood fit w/ PDF bin integration
     Fit_hist = h_tau;
@@ -502,7 +509,7 @@ void Fit_sPlot(TH1D *h_tau, RooAbsPdf *Tau_pdf, RooRealVar *Tau, RooRealVar *Eff
     Fit_obs = Tau;
     Fit_w_weight = false;
     
-    RooAbsReal* NLLVar = bindFunction("NLLVar",Fit_NLLVar,*EffTau);
+    RooAbsReal* NLLVar = bindFunction("NLLVar",Fit_NLLVar,*TransTau);
     RooMinuit *RooMin = new RooMinuit(*NLLVar);
     RooMin->setErrorLevel(0.5);
     RooMin->migrad();
@@ -519,15 +526,183 @@ void Fit_sPlot(TH1D *h_tau, RooAbsPdf *Tau_pdf, RooRealVar *Tau, RooRealVar *Eff
     TMatrixD Cov = Cov1*Cov2inv*Cov1;
     
     double scale = sqrt(Cov(0,0))/sqrt(Cov1(0,0)); // ~ original error / new weighted error
-    RooRealVar* final_EffTau = (RooRealVar*)(*res1)->floatParsFinal().find(EffTau->GetName());
-    final_EffTau->setError(final_EffTau->getError()*scale);
-    final_EffTau->setAsymError(final_EffTau->getErrorLo()*scale, final_EffTau->getErrorHi()*scale);
+    RooRealVar* final_TransTau = (RooRealVar*)(*res1)->floatParsFinal().find(TransTau->GetName());
+    final_TransTau->setError(final_TransTau->getError()*scale);
+    final_TransTau->setAsymError(final_TransTau->getErrorLo()*scale, final_TransTau->getErrorHi()*scale);
+    TransTau->setError(final_TransTau->getError());
+    TransTau->setAsymError(final_TransTau->getErrorLo(), final_TransTau->getErrorHi());
     
     // Show fit results
     cout << ">>> Fit results:" << endl;
-    cout << ">>> EffTau: " << final_EffTau->getVal() << " +- " <<
-    final_EffTau->getError() << " (+" << final_EffTau->getErrorHi() << "/" << final_EffTau->getErrorLo() << ")" << endl;
+    cout << ">>> TransTau/EffTau: " << final_TransTau->getVal() << " +- " <<
+    final_TransTau->getError() << " (+" << final_TransTau->getErrorHi() << "/" << final_TransTau->getErrorLo() << ")" << endl;
+    cout << ">>> (inverted):      " << _InvTransform(final_TransTau->getVal()) << " " <<
+    (_InvTransform(final_TransTau->getVal()+final_TransTau->getError())-_InvTransform(final_TransTau->getVal())) << "/+" <<
+    (_InvTransform(final_TransTau->getVal()-final_TransTau->getError())-_InvTransform(final_TransTau->getVal())) << " (" <<
+    (_InvTransform(final_TransTau->getVal()+final_TransTau->getErrorHi())-_InvTransform(final_TransTau->getVal())) << "/+" <<
+    (_InvTransform(final_TransTau->getVal()+final_TransTau->getErrorLo())-_InvTransform(final_TransTau->getVal())) << ")" << endl;
     
     delete RooMin;
     delete NLLVar;
+}
+
+TH1D* Produce_sPlot_FitCurve(TH1D *h_tau, RooAbsPdf *Tau_pdf, RooRealVar *Tau)
+{
+    Tau->setRange("full", Tau->getMin(), Tau->getMax());
+    RooAbsReal* area_full = Tau_pdf->createIntegral(*Tau,Range("full"));
+    double norm = area_full->getVal();
+    delete area_full;
+    double sum_of_weights = h_tau->GetSumOfWeights();
+    
+    TH1D *h_tau_curve = (TH1D *)h_tau->Clone(Form("%s_curve",h_tau->GetName()));
+    h_tau_curve->Reset();
+    
+    //TH1D *h_tau_curve = new TH1D(Form("%s_curve",h_tau->GetName()),"",200,Tau_bound[0],Tau_bound[1]);
+    
+    for(int bin=1;bin<=h_tau_curve->GetNbinsX();bin++) {
+        
+        double x_min = h_tau_curve->GetBinLowEdge(bin);
+        double x_max = x_min + h_tau_curve->GetBinWidth(bin);
+        Tau->setRange("bin", x_min, x_max);
+        RooAbsReal* area = Tau_pdf->createIntegral(*Tau,Range("bin"));
+        double val   = max(area->getVal()/norm,0.)*sum_of_weights;
+        delete area;
+        
+        h_tau_curve->SetBinContent(bin,val);
+    }
+    return h_tau_curve;
+}
+
+// auotmatically rebin the sPlot until no negative bins
+TH1D* Rebin_sPlot(TH1D *hist_in)
+{
+    //return (TH1D*)hist_in->Clone("hist_rebin");
+    
+    class HIST {
+    public:
+        vector<double> edges;
+        vector<double> data;
+        
+        HIST() {};
+        HIST(TH1D *hist_in) {
+            for (int i=1; i<=hist_in->GetNbinsX()+1; i++)
+                edges.push_back(hist_in->GetBinLowEdge(i));
+            for (int i=1; i<=hist_in->GetNbinsX(); i++)
+                data.push_back(hist_in->GetBinContent(i));
+        }
+        HIST(HIST *hist_in) {
+            data = hist_in->data;
+            edges = hist_in->edges;
+        }
+        void MergeBin(int bin, int direction) {
+            if (direction<0) { // merge to left
+                if (bin==0) return;
+                data[bin-1] += data[bin];
+                data.erase(data.begin()+bin);
+                edges.erase(edges.begin()+bin);
+            }
+            if (direction>0) { // merge to right
+                if (bin==(int)data.size()-1) return;
+                data[bin+1] += data[bin];
+                data.erase(data.begin()+bin);
+                edges.erase(edges.begin()+bin+1);
+            }
+        }
+        int Compare(HIST *hist_in) {
+            if (hist_in->edges.size()!=edges.size()) return -1;
+            for (int bin=0; bin<(int)edges.size(); bin++)
+                if (fabs(hist_in->edges[bin]-edges[bin])>1E-5) return -2;
+            return 0;
+        }
+        void Print() {
+            cout << "[";
+            for (int bin=0; bin<(int)data.size()-1; bin++)
+                cout << data[bin] << ", ";
+            cout << data.back() << "] in ";
+            cout << "[";
+            for (int bin=0; bin<(int)edges.size()-1; bin++)
+                cout << edges[bin] << ", ";
+            cout << edges.back() << "]" << endl;
+        }
+    };
+    
+    vector<HIST*> src, dest;
+    HIST *clone = new HIST(hist_in);
+    src.push_back(clone);
+    
+    while (1) {
+        bool w_negative_hist = false;
+        for (int idx=0; idx<(int)src.size(); idx++)
+            if (src[idx]->data.size()>1) // still can be merged
+                for (int bin=0; bin<(int)src[idx]->data.size(); bin++)
+                    if (src[idx]->data[bin]<0.0) w_negative_hist = true;
+        if (!w_negative_hist) break;
+        
+        cout << ">>> Rebinning histograms: " << src.size() << endl;
+        
+        for (int idx=0; idx<(int)src.size(); idx++) {
+            bool w_negative_bin = false;
+            for (int bin=0; bin<(int)src[idx]->data.size(); bin++) {
+                if (src[idx]->data[bin]<0.0) {
+                    if (bin>0) {
+                        HIST *merge = new HIST(src[idx]);
+                        merge->MergeBin(bin,-1);
+                        bool duplicated = false;
+                        for (int i=0; i<(int)dest.size(); i++)
+                            if (dest[i]->Compare(merge)==0) duplicated = true;
+                        if (!duplicated) dest.push_back(merge);
+                    }
+                    if (bin<(int)src[idx]->data.size()-1) {
+                        HIST *merge = new HIST(src[idx]);
+                        merge->MergeBin(bin,+1);
+                        bool duplicated = false;
+                        for (int i=0; i<(int)dest.size(); i++)
+                            if (dest[i]->Compare(merge)==0) duplicated = true;
+                        if (!duplicated) dest.push_back(merge);
+                    }
+                    w_negative_bin = true;
+                }
+            }
+            if (!w_negative_bin) {
+                HIST *merge = new HIST(src[idx]);
+                bool duplicated = false;
+                for (int i=0; i<(int)dest.size(); i++)
+                    if (dest[i]->Compare(merge)==0) duplicated = true;
+                if (!duplicated) dest.push_back(merge);
+            }
+        }
+        
+        for (int idx=0; idx<(int)src.size(); idx++) delete src[idx];
+        src.clear();
+        src = dest;
+        dest.clear();
+    }
+    
+    cout << ">>> Rebinning done, look for the best binning:" << endl;
+    
+    int max_nbins = 0;
+    for (int idx=0; idx<(int)src.size(); idx++) {
+        if ((int)src[idx]->data.size()>max_nbins) max_nbins = src[idx]->data.size();
+    }
+    double minmax_binwidth = 1E10;
+    int best_bin_idx = -1;
+    for (int idx=0; idx<(int)src.size(); idx++) {
+        if ((int)src[idx]->data.size()!=max_nbins) continue;
+        
+        double max_binwidth = 0.;
+        for (int bin=0; bin<(int)src[idx]->data.size(); bin++) {
+            if (src[idx]->edges[bin+1]-src[idx]->edges[bin]>max_binwidth) max_binwidth = src[idx]->edges[bin+1]-src[idx]->edges[bin];
+        }
+        if (max_binwidth<minmax_binwidth) {
+            minmax_binwidth = max_binwidth;
+            best_bin_idx = idx;
+            cout << ">>> histogram idx = "<< idx << ", binning = ";
+            src[idx]->Print();
+        }
+    }
+    
+    TH1D *rebin = (TH1D *)hist_in->Rebin(src[best_bin_idx]->edges.size()-1,Form("%s_rebin",hist_in->GetName()),src[best_bin_idx]->edges.data());
+    for (int idx=0; idx<(int)src.size(); idx++) delete src[idx];
+    
+    return rebin;
 }

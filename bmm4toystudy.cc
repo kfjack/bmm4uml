@@ -1,6 +1,6 @@
 #include "bmm4common.h"
 
-void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataSet *toy_data, int toy_idx, bool sys_study = false, bool display = false)
+void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataSet *toy_data, int toy_idx, bool sys_study = false, bool merge_bins = true, bool display = false)
 {
     cout << ">>> ProduceToyTauSPlot() start" << endl;
     
@@ -13,46 +13,51 @@ void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataS
     RooFitResult *res1 = NULL, *res2 = NULL;
     
     vector<TH1D*> h_tau_sys;
-    vector<double> diff_tau_sys;
-    vector<TString> cmd_tau_sys;
+    vector<double> diff_sys;
+    vector<TString> cmd_sys;
     
     if (sys_study) {
-        cmd_tau_sys.push_back(Form("0HistEffModel"));
-        cmd_tau_sys.push_back(Form("+respar_bsmm_mix_taue"));
-        cmd_tau_sys.push_back(Form("-respar_bsmm_mix_taue"));
-        cmd_tau_sys.push_back(Form("+fs_over_fu_S13"));
-        cmd_tau_sys.push_back(Form("-fs_over_fu_S13"));
+        cmd_sys.push_back(Form("0HistEffModel"));
+        cmd_sys.push_back(Form("0AlterEffModel"));
+        cmd_sys.push_back(Form("+respar_bsmm_mix_taue"));
+        cmd_sys.push_back(Form("-respar_bsmm_mix_taue"));
+        cmd_sys.push_back(Form("+fs_over_fu_S13"));
+        cmd_sys.push_back(Form("-fs_over_fu_S13"));
+        cmd_sys.push_back(Form("+syst_semi_shape"));
+        cmd_sys.push_back(Form("-syst_semi_shape"));
+        cmd_sys.push_back(Form("+syst_h2mu_shape"));
+        cmd_sys.push_back(Form("-syst_h2mu_shape"));
         for (auto& cat: CatMan.cats) {
-            cmd_tau_sys.push_back(Form("+N_bu_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("-N_bu_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("+effratio_bs_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("-effratio_bs_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("+effratio_bd_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("-effratio_bd_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("+N_semi_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("-N_semi_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("+N_h2mu_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("-N_h2mu_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("+N_peak_%s", cat.id.Data()));
-            cmd_tau_sys.push_back(Form("-N_peak_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("+N_bu_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("-N_bu_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("+effratio_bs_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("-effratio_bs_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("+effratio_bd_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("-effratio_bd_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("+N_semi_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("-N_semi_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("+N_h2mu_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("-N_h2mu_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("+N_peak_%s", cat.id.Data()));
+            cmd_sys.push_back(Form("-N_peak_%s", cat.id.Data()));
         }
         
-        h_tau_sys.assign(cmd_tau_sys.size(),NULL);
-        diff_tau_sys.assign(cmd_tau_sys.size(),0.);
-        for (int sysidx = 0; sysidx < (int)cmd_tau_sys.size(); sysidx++) {
+        h_tau_sys.assign(cmd_sys.size(),NULL);
+        diff_sys.assign(cmd_sys.size(),0.);
+        for (int sysidx = 0; sysidx < (int)cmd_sys.size(); sysidx++) {
             h_tau_sys[sysidx] = new TH1D(Form("h_tau_sys_%03d",sysidx), "", Tau_bins.size()-1, Tau_bins.data());
             h_tau_sys[sysidx]->Sumw2();
         }
     }
     
-    for (int sysidx = -1; sysidx < (int)cmd_tau_sys.size(); sysidx++) {
+    for (int sysidx = -1; sysidx < (int)cmd_sys.size(); sysidx++) {
         
         if (!sys_study && sysidx>=0) break; // skip nuisances variations
         
         double nuisance_preserve = 0.;
         if (sysidx>=0) {
-            TString var = cmd_tau_sys[sysidx](0,1);
-            TString key = cmd_tau_sys[sysidx](1,cmd_tau_sys[sysidx].Length()-1);
+            TString var = cmd_sys[sysidx](0,1);
+            TString key = cmd_sys[sysidx](1,cmd_sys[sysidx].Length()-1);
             
             // Take post-fit nuisance variation
             if (var!="0") {
@@ -63,6 +68,7 @@ void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataS
             }
         }
         
+        if (!merge_bins) // original setup
         for (auto& cat: CatMan.cats) {
             
             RooRealVar *Mass = wspace->var("Mass");
@@ -125,24 +131,141 @@ void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataS
                 double weight = numerator/denominator;
                 if (sysidx<0) h_tau->Fill(arg->getRealValue("Tau"),weight);
                 else h_tau_sys[sysidx]->Fill(arg->getRealValue("Tau"),weight);
+                
             }
         }
         
+        if (merge_bins) { // new setup, merging Run1 and Run2 bins separately.
+            for (TString era_group : {"2011s01;2012s01", "2016BFs01;2016GHs01"}) {
+                
+                RooAddPdf *pdf_merged[_nspec];
+                double yield_merged[_nspec];
+                for (int idx = 0; idx<_nspec; idx++) {
+                    
+                    yield_merged[idx] = 0.;
+                    double yield[CatMan.cats.size()];
+                    for (int catidx = 0; catidx <(int)CatMan.cats.size(); catidx++) {
+                        if (!era_group.Contains(CatMan.cats[catidx].era)) continue;
+                        
+                        if (idx==_h2mu || idx==_comb)
+                        yield[catidx] = wspace->var(Form("N_%s_%s",specs[idx].Data(),CatMan.cats[catidx].id.Data()))->getVal();
+                        else
+                        yield[catidx] = wspace->function(Form("N_%s_formula_%s",specs[idx].Data(),CatMan.cats[catidx].id.Data()))->getVal();
+                        yield_merged[idx] += yield[catidx];
+                    }
+                    for (int catidx = 0; catidx <(int)CatMan.cats.size(); catidx++) {
+                        if (!era_group.Contains(CatMan.cats[catidx].era)) continue;
+                        yield[catidx] /= yield_merged[idx];
+                    }
+                
+                    RooArgList pdf_list, frac_list;
+                    for (int catidx = 0; catidx <(int)CatMan.cats.size(); catidx++) {
+                        if (!era_group.Contains(CatMan.cats[catidx].era)) continue;
+                        pdf_list.add(*wspace->pdf(Form("pdf_%s_%s",specs[idx].Data(),CatMan.cats[catidx].id.Data())));
+                    }
+                    for (int catidx = 0; catidx <(int)CatMan.cats.size()-1; catidx++) {
+                        if (!era_group.Contains(CatMan.cats[catidx].era)) continue;
+                        frac_list.add(RooConst(yield[catidx]));
+                    }
+                    
+                    pdf_merged[idx] = new RooAddPdf(Form("pdf_merged_%s",specs[idx].Data()),"",pdf_list,frac_list);
+                }
+                
+                RooRealVar *Mass = wspace->var("Mass");
+                RooRealVar *ReducedMassRes = wspace->var("ReducedMassRes");
+                RooCategory *PairCat = wspace->cat("PairCat");
+                RooArgSet norm(*Mass,*ReducedMassRes,*PairCat);
+                
+                TMatrixD covInv(_nspec, _nspec);
+                covInv = 0.;
+                
+                for (auto& cat: CatMan.cats) {
+                    if (!era_group.Contains(cat.era)) continue;
+                    
+                    for (int evt=0; evt<toy_data->numEntries(); evt++) {
+                        const RooArgSet* arg = toy_data->get(evt);
+                        if (arg->getCatIndex("GlobalCat")!=cat.index) continue;
+                        
+                        Mass->setVal(arg->getRealValue("Mass"));
+                        ReducedMassRes->setVal(arg->getRealValue("ReducedMassRes"));
+                        PairCat->setIndex(arg->getCatIndex("PairCat"));
+                        
+                        double pdf[_nspec];
+                        for (int idx = 0; idx<_nspec; idx++)
+                        pdf[idx] = pdf_merged[idx]->getVal(&norm);
+                        
+                        double pdf_total = 0.;
+                        for (int idx = 0; idx<_nspec; idx++) pdf_total += yield_merged[idx]*pdf[idx];
+                        
+                        for (int row = 0; row<_nspec; row++)
+                        for (int col = 0; col<_nspec; col++)
+                        covInv(row,col) += pdf[row]*pdf[col]/(pdf_total*pdf_total);
+                    }
+                }
+                
+                TMatrixD covMatrix(TMatrixD::kInverted,covInv);
+                
+                for (auto& cat: CatMan.cats) {
+                    if (!era_group.Contains(cat.era)) continue;
+                    
+                    for (int evt=0; evt<toy_data->numEntries(); evt++) {
+                        const RooArgSet* arg = toy_data->get(evt);
+                        if (arg->getCatIndex("GlobalCat")!=cat.index) continue;
+                        if (arg->getCatIndex("SelCat")!=1) continue;
+                        
+                        Mass->setVal(arg->getRealValue("Mass"));
+                        ReducedMassRes->setVal(arg->getRealValue("ReducedMassRes"));
+                        PairCat->setIndex(arg->getCatIndex("PairCat"));
+                        
+                        double pdf[_nspec];
+                        for (int idx = 0; idx<_nspec; idx++)
+                        pdf[idx] = pdf_merged[idx]->getVal(&norm);
+                        
+                        double denominator = 0.;
+                        for (int idx = 0; idx<_nspec; idx++) denominator += yield_merged[idx]*pdf[idx];
+                        
+                        double numerator = 0.;
+                        for (int idx = 0; idx<_nspec; idx++) numerator += covMatrix(_bs,idx)*pdf[idx];
+                        
+                        double weight = numerator/denominator;
+                        if (sysidx<0) h_tau->Fill(arg->getRealValue("Tau"),weight);
+                        else h_tau_sys[sysidx]->Fill(arg->getRealValue("Tau"),weight);
+                        
+                    }
+                }
+                for (int idx = 0; idx < _nspec; idx++)
+                delete pdf_merged[idx];
+            }
+        }
+        
+        // rebin the all of the sPlots
+        TH1D* binning_refhist = Rebin_sPlot(h_tau);
+        vector<double> binning_ref;
+        for (int i=1; i<=binning_refhist->GetNbinsX()+1; i++)
+            binning_ref.push_back(binning_refhist->GetBinLowEdge(i));
+        delete h_tau;
+        h_tau = binning_refhist;
+
+        for (int sysidx = 0; sysidx < (int)cmd_sys.size(); sysidx++) {
+            TH1D* replace = (TH1D*)h_tau_sys[sysidx]->Rebin(binning_ref.size()-1,Form("%s_rebin",h_tau_sys[sysidx]->GetName()),binning_ref.data());
+            delete h_tau_sys[sysidx];
+            h_tau_sys[sysidx] = replace;
+        }
+        
         RooRealVar *Tau = wspace->var("Tau");
-        RooRealVar *EffTau_bs = wspace->var("EffTau_bs");
+        RooRealVar *TransTau_bs = wspace->var("TransTau_bs");
         RooAbsPdf *Tau_pdf_bs = wspace->pdf("Tau_pdf_bs_mix");
         
-        EffTau_bs->setConstant(false);
-        EffTau_bs->setMax(8.0);
-        EffTau_bs->setVal(1.61); // always start from SM value
+        TransTau_bs->setConstant(false);
+        TransTau_bs->setVal(_Transform(1.61)); // always start from SM value
         
         if (sysidx<0) { // central fit
-            Fit_sPlot(h_tau, Tau_pdf_bs, Tau, EffTau_bs, &res1, &res2);
+            Fit_sPlot(h_tau, Tau_pdf_bs, Tau, TransTau_bs, &res1, &res2);
             wspace_res->import(*res1,Form("fitresult_taubs_toy_%d",toy_idx)); // results with corrected uncertainties
             wspace_res->import(*res2,Form("fitresult_taubs_wl_toy_%d",toy_idx)); // results from the 2nd weighted likelihood fit
             
         }else {
-            TString key = cmd_tau_sys[sysidx](1,cmd_tau_sys[sysidx].Length()-1);
+            TString key = cmd_sys[sysidx](1,cmd_sys[sysidx].Length()-1);
             
             RooFitResult *res1sys = NULL, *res2sys = NULL;
             
@@ -150,15 +273,22 @@ void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataS
                 RooResolutionModel *TauRes_Model = (RooResolutionModel*)wspace->obj(Form("TauRes_Model_bsmm_mix"));
                 RooFormulaVar *TauEff_Model = (RooFormulaVar*)wspace->obj(Form("TauEff_Model_Hist_bsmm_mix"));
                 
-                RooDecay RawDecay("RawDecay_alter","",*Tau,*EffTau_bs,*TauRes_Model,RooDecay::SingleSided);
+                RooDecay RawDecay("RawDecay_alter","",*Tau,*wspace->function("EffTau_bs"),*TauRes_Model,RooDecay::SingleSided);
                 RooEffProd Tau_pdf("Tau_pdf_alter","",RawDecay,*TauEff_Model);
-                Fit_sPlot(h_tau_sys[sysidx], &Tau_pdf, Tau, EffTau_bs, &res1sys, &res2sys);
+                Fit_sPlot(h_tau_sys[sysidx], &Tau_pdf, Tau, TransTau_bs, &res1sys, &res2sys);
+            }else if (key=="AlterEffModel") {
+                RooResolutionModel *TauRes_Model = (RooResolutionModel*)wspace->obj(Form("TauRes_Model_bsmm_mix"));
+                RooFormulaVar *TauEff_Model = (RooFormulaVar*)wspace->obj(Form("TauEff_Model_1overexp_bsmm_mix"));
+                
+                RooDecay RawDecay("RawDecay_alter","",*Tau,*wspace->function("EffTau_bs"),*TauRes_Model,RooDecay::SingleSided);
+                RooEffProd Tau_pdf("Tau_pdf_alter","",RawDecay,*TauEff_Model);
+                Fit_sPlot(h_tau_sys[sysidx], &Tau_pdf, Tau, TransTau_bs, &res1sys, &res2sys);
             }else
-                Fit_sPlot(h_tau_sys[sysidx], Tau_pdf_bs, Tau, EffTau_bs, &res1sys, &res2sys);
+                Fit_sPlot(h_tau_sys[sysidx], Tau_pdf_bs, Tau, TransTau_bs, &res1sys, &res2sys);
             
-            RooRealVar* tau0 = (RooRealVar*)res1->floatParsFinal().find("EffTau_bs");
-            RooRealVar* tau1 = (RooRealVar*)res1sys->floatParsFinal().find("EffTau_bs");
-            diff_tau_sys[sysidx] = tau1->getVal()-tau0->getVal();
+            RooRealVar* tau0 = (RooRealVar*)res1->floatParsFinal().find("TransTau_bs");
+            RooRealVar* tau1 = (RooRealVar*)res1sys->floatParsFinal().find("TransTau_bs");
+            diff_sys[sysidx] = tau1->getVal()-tau0->getVal();
 
             delete res1sys;
             delete res2sys;
@@ -174,7 +304,7 @@ void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataS
             h_tau->SetLineColor(kBlack);
             h_tau_data->plotOn(frame,MarkerStyle(20),LineColor(kBlack));
             
-            Tau_pdf_bs->plotOn(frame, DrawOption("L"), LineColor(kBlue), LineWidth(2), LineStyle(1), NumCPU(NCPU));
+            //Tau_pdf_bs->plotOn(frame, DrawOption("L"), LineColor(kBlue), LineWidth(2), LineStyle(1), NumCPU(NCPU));
             
             TCanvas* canvas = new TCanvas("canvas", "", 600, 600);
             canvas->SetMargin(0.14,0.06,0.13,0.07);
@@ -189,6 +319,11 @@ void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataS
             frame->SetStats(false);
             frame->Draw("E");
             gStyle->SetErrorX(0);
+            
+            TH1D* h_tau_curve = Produce_sPlot_FitCurve(h_tau, Tau_pdf_bs, Tau);
+            h_tau_curve->SetLineColor(kBlue);
+            h_tau_curve->SetLineWidth(2);
+            h_tau_curve->Draw("same");
             
             TLatex tex;
             tex.SetTextFont(42);
@@ -205,11 +340,12 @@ void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataS
             
             canvas->Update();
             
-            TLegend *leg1 = new TLegend(0.50,0.86,0.91,0.91);
+            TLegend *leg1 = new TLegend(0.50,0.81,0.91,0.91);
             leg1->SetNColumns(1);
             leg1->SetFillColor(kWhite);
             leg1->SetLineColor(kWhite);
             leg1->AddEntry(h_tau, "weighted toy (B_{s})", "lep");
+            leg1->AddEntry(h_tau_curve, "Fit result", "l");
             leg1->Draw();
             
             canvas->Print("fig/tau_splot_fit_toy_bs.pdf");
@@ -221,8 +357,8 @@ void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataS
         }
         
         if (sysidx>=0) { // restore the nuisance value
-            TString var = cmd_tau_sys[sysidx](0,1);
-            TString key = cmd_tau_sys[sysidx](1,cmd_tau_sys[sysidx].Length()-1);
+            TString var = cmd_sys[sysidx](0,1);
+            TString key = cmd_sys[sysidx](1,cmd_sys[sysidx].Length()-1);
             if (var!="0") {
                 RooRealVar *nuisance = wspace->var(key);
                 nuisance->setVal(nuisance_preserve);
@@ -233,13 +369,13 @@ void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataS
     if (sys_study) {
 
         double err_p = 0., err_m = 0.;
-        for (int sysidx = 0; sysidx < (int)cmd_tau_sys.size(); sysidx++) {
-            TString var = cmd_tau_sys[sysidx](0,1);
-            TString key = cmd_tau_sys[sysidx](1,cmd_tau_sys[sysidx].Length()-1);
-            cout << ">>> SYS(" << var << ") " << key << ": " << diff_tau_sys[sysidx] << endl;
+        for (int sysidx = 0; sysidx < (int)cmd_sys.size(); sysidx++) {
+            TString var = cmd_sys[sysidx](0,1);
+            TString key = cmd_sys[sysidx](1,cmd_sys[sysidx].Length()-1);
+            cout << ">>> SYS(" << var << ") " << key << ": " << diff_sys[sysidx] << endl;
             
-            if (diff_tau_sys[sysidx]>0.) err_p += diff_tau_sys[sysidx]*diff_tau_sys[sysidx];
-            if (diff_tau_sys[sysidx]<0.) err_m += diff_tau_sys[sysidx]*diff_tau_sys[sysidx];
+            if (diff_sys[sysidx]>0.) err_p += diff_sys[sysidx]*diff_sys[sysidx];
+            if (diff_sys[sysidx]<0.) err_m += diff_sys[sysidx]*diff_sys[sysidx];
         
             delete h_tau_sys[sysidx];
         }
@@ -247,13 +383,13 @@ void ProduceToyTauSPlot(RooWorkspace *wspace_res, RooWorkspace *wspace, RooDataS
         err_m = sqrt(err_m);
         
         RooFitResult res3(*res1);
-        RooRealVar* tau1 = (RooRealVar*)res3.floatParsFinal().find("EffTau_bs");
+        RooRealVar* tau1 = (RooRealVar*)res3.floatParsFinal().find("TransTau_bs");
         tau1->setError(max(err_p, err_m));
         tau1->setAsymError(-err_m, err_p);
         wspace_res->import(res3,Form("fitresult_taubs_syst_toy_%d",toy_idx)); // systematic results
         
-        RooRealVar* tau0 = (RooRealVar*)res1->floatParsFinal().find("EffTau_bs");
-        cout << ">>> EffTau central: " << tau0->getVal() << " +- " <<
+        RooRealVar* tau0 = (RooRealVar*)res1->floatParsFinal().find("TransTau_bs");
+        cout << ">>> TransTau central: " << tau0->getVal() << " +- " <<
         tau0->getError() << " (+" << tau0->getErrorHi() << "/" << tau0->getErrorLo() << ")" <<
         " (+" << err_p << "/-" << err_m << ")" << endl;
     }
@@ -300,18 +436,35 @@ void PerformToyStudy(RooWorkspace *wspace_res, RooWorkspace* wspace_gen, RooWork
             RooRealVar *fs_over_fu = wspace_gen->var("fs_over_fu");
             RooRealVar *fs_over_fu_S13 = wspace_gen->var("fs_over_fu_S13");
             RooRealVar *one_over_BRBR = wspace_gen->var("one_over_BRBR");
+            RooRealVar *syst_semi_shape = wspace_gen->var("syst_semi_shape");
+            RooRealVar *syst_h2mu_shape = wspace_gen->var("syst_h2mu_shape");
+            
             RooAbsPdf *fs_over_fu_gau = wspace_gen->pdf("fs_over_fu_gau");
             RooAbsPdf *fs_over_fu_S13_gau = wspace_gen->pdf("fs_over_fu_S13_gau");
             RooAbsPdf *one_over_BRBR_gau = wspace_gen->pdf("one_over_BRBR_gau");
+            RooAbsPdf *syst_semi_shape_gau = wspace_gen->pdf("syst_semi_shape_gau");
+            RooAbsPdf *syst_h2mu_shape_gau = wspace_gen->pdf("syst_h2mu_shape_gau");
             
-            tmp_evt = fs_over_fu_gau->generate(RooArgSet(*fs_over_fu),1);
-            fs_over_fu->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu->GetName())); delete tmp_evt;
-
-            tmp_evt = fs_over_fu_S13_gau->generate(RooArgSet(*fs_over_fu_S13),1);
-            fs_over_fu_S13->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu_S13->GetName())); delete tmp_evt;
-            
-            tmp_evt = one_over_BRBR_gau->generate(RooArgSet(*one_over_BRBR),1);
-            one_over_BRBR->setVal(tmp_evt->get(0)->getRealValue(one_over_BRBR->GetName())); delete tmp_evt;
+            if (wspace_gen->var("fs_over_fu_sigma")->getVal()>0.) {
+                tmp_evt = fs_over_fu_gau->generate(RooArgSet(*fs_over_fu),1);
+                fs_over_fu->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu->GetName())); delete tmp_evt;
+            }
+            if (wspace_gen->var("fs_over_fu_S13_sigma")->getVal()>0.) {
+                tmp_evt = fs_over_fu_S13_gau->generate(RooArgSet(*fs_over_fu_S13),1);
+                fs_over_fu_S13->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu_S13->GetName())); delete tmp_evt;
+            }
+            if (wspace_gen->var("one_over_BRBR_sigma")->getVal()>0.) {
+                tmp_evt = one_over_BRBR_gau->generate(RooArgSet(*one_over_BRBR),1);
+                one_over_BRBR->setVal(tmp_evt->get(0)->getRealValue(one_over_BRBR->GetName())); delete tmp_evt;
+            }
+            if (wspace_gen->var("syst_semi_shape_sigma")->getVal()>0.) {
+                tmp_evt = syst_semi_shape_gau->generate(RooArgSet(*syst_semi_shape),1);
+                syst_semi_shape->setVal(tmp_evt->get(0)->getRealValue(syst_semi_shape->GetName())); delete tmp_evt;
+            }
+            if (wspace_gen->var("syst_h2mu_shape_sigma")->getVal()>0.) {
+                tmp_evt = syst_h2mu_shape_gau->generate(RooArgSet(*syst_h2mu_shape),1);
+                syst_h2mu_shape->setVal(tmp_evt->get(0)->getRealValue(syst_h2mu_shape->GetName())); delete tmp_evt;
+            }
             
             for (auto& cat: CatMan.cats) {
                 
@@ -355,24 +508,46 @@ void PerformToyStudy(RooWorkspace *wspace_res, RooWorkspace* wspace_gen, RooWork
             RooRealVar *fs_over_fu = wspace->var("fs_over_fu");
             RooRealVar *fs_over_fu_S13 = wspace->var("fs_over_fu_S13");
             RooRealVar *one_over_BRBR = wspace->var("one_over_BRBR");
+            RooRealVar *syst_semi_shape = wspace->var("syst_semi_shape");
+            RooRealVar *syst_h2mu_shape = wspace->var("syst_h2mu_shape");
+            
             RooRealVar *fs_over_fu_mean = wspace->var("fs_over_fu_mean");
             RooRealVar *fs_over_fu_S13_mean = wspace->var("fs_over_fu_S13_mean");
             RooRealVar *one_over_BRBR_mean = wspace->var("one_over_BRBR_mean");
+            RooRealVar *syst_semi_shape_mean = wspace->var("syst_semi_shape_mean");
+            RooRealVar *syst_h2mu_shape_mean = wspace->var("syst_h2mu_shape_mean");
+            
             RooAbsPdf *fs_over_fu_gau = wspace->pdf("fs_over_fu_gau");
             RooAbsPdf *fs_over_fu_S13_gau = wspace->pdf("fs_over_fu_S13_gau");
             RooAbsPdf *one_over_BRBR_gau = wspace->pdf("one_over_BRBR_gau");
+            RooAbsPdf *syst_semi_shape_gau = wspace->pdf("syst_semi_shape_gau");
+            RooAbsPdf *syst_h2mu_shape_gau = wspace->pdf("syst_h2mu_shape_gau");
             
-            fs_over_fu_mean->setVal(fs_over_fu->getVal());
-            tmp_evt = fs_over_fu_gau->generate(RooArgSet(*fs_over_fu),1);
-            fs_over_fu_mean->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu->GetName())); delete tmp_evt;
-
-            fs_over_fu_S13_mean->setVal(fs_over_fu_S13->getVal());
-            tmp_evt = fs_over_fu_S13_gau->generate(RooArgSet(*fs_over_fu_S13),1);
-            fs_over_fu_S13_mean->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu_S13->GetName())); delete tmp_evt;
-            
-            one_over_BRBR_mean->setVal(one_over_BRBR->getVal());
-            tmp_evt = one_over_BRBR_gau->generate(RooArgSet(*one_over_BRBR),1);
-            one_over_BRBR_mean->setVal(tmp_evt->get(0)->getRealValue(one_over_BRBR->GetName())); delete tmp_evt;
+            if (wspace->var("fs_over_fu_sigma")->getVal()>0.) {
+                fs_over_fu_mean->setVal(fs_over_fu->getVal());
+                tmp_evt = fs_over_fu_gau->generate(RooArgSet(*fs_over_fu),1);
+                fs_over_fu_mean->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu->GetName())); delete tmp_evt;
+            }
+            if (wspace->var("fs_over_fu_S13_sigma")->getVal()>0.) {
+                fs_over_fu_S13_mean->setVal(fs_over_fu_S13->getVal());
+                tmp_evt = fs_over_fu_S13_gau->generate(RooArgSet(*fs_over_fu_S13),1);
+                fs_over_fu_S13_mean->setVal(tmp_evt->get(0)->getRealValue(fs_over_fu_S13->GetName())); delete tmp_evt;
+            }
+            if (wspace->var("one_over_BRBR_sigma")->getVal()>0.) {
+                one_over_BRBR_mean->setVal(one_over_BRBR->getVal());
+                tmp_evt = one_over_BRBR_gau->generate(RooArgSet(*one_over_BRBR),1);
+                one_over_BRBR_mean->setVal(tmp_evt->get(0)->getRealValue(one_over_BRBR->GetName())); delete tmp_evt;
+            }
+            if (wspace->var("syst_semi_shape_sigma")->getVal()>0.) {
+                syst_semi_shape_mean->setVal(syst_semi_shape->getVal());
+                tmp_evt = syst_semi_shape_gau->generate(RooArgSet(*syst_semi_shape),1);
+                syst_semi_shape_mean->setVal(tmp_evt->get(0)->getRealValue(syst_semi_shape->GetName())); delete tmp_evt;
+            }
+            if (wspace->var("syst_h2mu_shape_sigma")->getVal()>0.) {
+                syst_h2mu_shape_mean->setVal(syst_h2mu_shape->getVal());
+                tmp_evt = syst_h2mu_shape_gau->generate(RooArgSet(*syst_h2mu_shape),1);
+                syst_h2mu_shape_mean->setVal(tmp_evt->get(0)->getRealValue(syst_h2mu_shape->GetName())); delete tmp_evt;
+            }
             
             for (auto& cat: CatMan.cats) {
                 
@@ -428,6 +603,8 @@ void PerformToyStudy(RooWorkspace *wspace_res, RooWorkspace* wspace_gen, RooWork
             wspace->var("fs_over_fu")->setConstant(true);
             wspace->var("fs_over_fu_S13")->setConstant(true);
             wspace->var("one_over_BRBR")->setConstant(true);
+            wspace->var("syst_semi_shape")->setConstant(true);
+            wspace->var("syst_h2mu_shape")->setConstant(true);
             
             for (auto& cat: CatMan.cats) {
                 
@@ -559,7 +736,13 @@ void PerformToyStudy(RooWorkspace *wspace_res, RooWorkspace* wspace_gen, RooWork
             }
         }
         
-        RooArgSet global_ext_constr(*wspace->pdf("fs_over_fu_gau"),*wspace->pdf("fs_over_fu_S13_gau"),*wspace->pdf("one_over_BRBR_gau"));
+        RooArgSet global_ext_constr; // external Gaussian constraints
+        if (wspace->var("fs_over_fu_sigma")->getVal()>0.) global_ext_constr.add(*wspace->pdf("fs_over_fu_gau"));
+        if (wspace->var("fs_over_fu_S13_sigma")->getVal()>0.) global_ext_constr.add(*wspace->pdf("fs_over_fu_S13_gau"));
+        if (wspace->var("one_over_BRBR_sigma")->getVal()>0.) global_ext_constr.add(*wspace->pdf("one_over_BRBR_gau"));
+        if (wspace->var("syst_semi_shape_sigma")->getVal()>0.) global_ext_constr.add(*wspace->pdf("syst_semi_shape_gau"));
+        if (wspace->var("syst_h2mu_shape_sigma")->getVal()>0.) global_ext_constr.add(*wspace->pdf("syst_h2mu_shape_gau"));
+
         RooArgSet minos_list;
         for (auto& POI: POI_list) minos_list.add(*wspace->var(POI));
         
@@ -643,7 +826,7 @@ void ProducePullPlots(TString path, bool saveTuple = true)
             int idx = 0;
             while (true) {
                 RooFitResult *res = (RooFitResult*)wspace_res->obj(Form("fitresult_toy_%d",idx));
-                if (POI == "EffTau_bs") {
+                if (POI == "TransTau_bs") {
                     res = (RooFitResult*)wspace_res->obj(Form("fitresult_taubs_toy_%d",idx));
                     RooFitResult *res_wl = (RooFitResult*)wspace_res->obj(Form("fitresult_taubs_wl_toy_%d",idx));
                     if (res_wl==NULL || res_wl->status()!=0) break;
@@ -656,10 +839,10 @@ void ProducePullPlots(TString path, bool saveTuple = true)
                     RooRealVar* final = (RooRealVar*)res->floatParsFinal().find(POI);
                     if (init==NULL || final==NULL) break;
                     
-                    if (POI == "EffTau_bs") {
+                    if (POI == "TransTau_bs") {
                         double var = (final->getVal()-init->getVal())/final->getError();
-                        if (final->getError()<8. && final->getError()>0.02)
-                            x_val.push_back(var);
+                        //if (final->getError()<8. && final->getError()>0.02)
+                        x_val.push_back(var);
                     }else {
                         double err_hi = fabs(final->getErrorHi());
                         double err_lo = fabs(final->getErrorLo());
@@ -677,7 +860,19 @@ void ProducePullPlots(TString path, bool saveTuple = true)
             wspace_res->Delete();
         }
         if (x_val.size()==0) continue;
-                
+        
+        if (saveTuple) {
+            TFile *fout = new TFile(Form("fig/pull_%s.root",POI.Data()),"recreate");
+            TNtupleD *nt = new TNtupleD("nt","","pull");
+            for (int idx=0; idx<(int)x_val.size(); idx++) {
+                nt->Fill(&x_val[idx]);
+            }
+            nt->Write();
+            fout->Close();
+            
+            delete fout;
+        }
+        
         RooRealVar pull("pull","",-6.,6.);
         RooDataSet *rds_pull = new RooDataSet("rds_pull","",RooArgSet(pull));
         for (int idx=0; idx<(int)x_val.size(); idx++) {
@@ -816,18 +1011,6 @@ void ProducePullPlots(TString path, bool saveTuple = true)
         delete leg1;
         delete frame;
         delete canvas;
-        
-        if (saveTuple) {
-            TFile *fout = new TFile(Form("fig/pull_%s.root",POI.Data()),"recreate");
-            TNtupleD *nt = new TNtupleD("nt","","pull");
-            for (int idx=0; idx<(int)x_val.size(); idx++) {
-                nt->Fill(&x_val[idx]);
-            }
-            nt->Write();
-            fout->Close();
-            
-            delete fout;
-        }
     }
 }
 
@@ -853,7 +1036,7 @@ void ProduceMeanErrorPlots(TString path, bool saveTuple = true)
             int idx = 0;
             while (true) {
                 RooFitResult *res = (RooFitResult*)wspace_res->obj(Form("fitresult_toy_%d",idx));
-                if (POI == "EffTau_bs") {
+                if (POI == "TransTau_bs") {
                     res = (RooFitResult*)wspace_res->obj(Form("fitresult_taubs_toy_%d",idx));
                     RooFitResult *res_wl = (RooFitResult*)wspace_res->obj(Form("fitresult_taubs_wl_toy_%d",idx));
                     if (res_wl==NULL || res_wl->status()!=0) break;
@@ -865,15 +1048,15 @@ void ProduceMeanErrorPlots(TString path, bool saveTuple = true)
                     RooRealVar* final = (RooRealVar*)res->floatParsFinal().find(POI);
                     if (final==NULL) break;
                     
-                    if (POI == "EffTau_bs")
-                        if (final->getError()>=8. || final->getError()<=0.02) continue;
+                    //if (POI == "TransTau_bs")
+                    //    if (final->getError()>=8. || final->getError()<=0.02) continue;
                     
                     x_val[0].push_back(final->getVal());
                     x_val[1].push_back(final->getError());
                     x_val[2].push_back(final->getErrorHi());
                     x_val[3].push_back(final->getErrorLo());
                     
-                    if (POI == "EffTau_bs") {
+                    if (POI == "TransTau_bs") {
                         RooFitResult *res_syst = (RooFitResult*)wspace_res->obj(Form("fitresult_taubs_syst_toy_%d",idx));
                         if (res_syst!=NULL) {
                             RooRealVar* syst = (RooRealVar*)res_syst->floatParsFinal().find(POI);
@@ -884,6 +1067,23 @@ void ProduceMeanErrorPlots(TString path, bool saveTuple = true)
                 }
             }
             wspace_res->Delete();
+        }
+        
+        if (saveTuple) { // save the ntuple before making the plot
+            TFile *fout = new TFile(Form("fig/meanerr_%s.root",POI.Data()),"recreate");
+            TNtupleD *nt = new TNtupleD("nt","","mean:error:errorhi:errorlo:systhi:systlo");
+            for (int idx=0; idx<(int)x_val[0].size(); idx++) {
+                double buffer[6];
+                for(int type=0; type<6; type++) {
+                    if ((int)x_val[type].size()>idx) buffer[type] = x_val[type][idx];
+                    else buffer[type] = 0.;
+                }
+                nt->Fill(buffer);
+            }
+            nt->Write();
+            fout->Close();
+            
+            delete fout;
         }
         
         TString title = Form("CMS simluation");
@@ -947,23 +1147,6 @@ void ProduceMeanErrorPlots(TString path, bool saveTuple = true)
             delete frame;
             delete canvas;
         }
-        
-        if (saveTuple) {
-            TFile *fout = new TFile(Form("fig/meanerr_%s.root",POI.Data()),"recreate");
-            TNtupleD *nt = new TNtupleD("nt","","mean:error:errorhi:errorlo:systhi:systlo");
-            for (int idx=0; idx<(int)x_val[0].size(); idx++) {
-                double buffer[6];
-                for(int type=0; type<6; type++) {
-                    if ((int)x_val[type].size()>idx) buffer[type] = x_val[type][idx];
-                    else buffer[type] = 0.;
-                }
-                nt->Fill(buffer);
-            }
-            nt->Write();
-            fout->Close();
-            
-            delete fout;
-        }
     }
 }
 
@@ -1000,6 +1183,21 @@ void ProduceSignificancePlots(TString path, bool saveTuple = true)
             idx++;
         }
         wspace_res->Delete();
+    }
+    
+    if (saveTuple) {
+        TFile *fout = new TFile("fig/significance.root","recreate");
+        TNtupleD *nt = new TNtupleD("nt","","sigbd:sigbs");
+        for (int idx=0; idx<(int)x_val[0].size(); idx++) {
+            double buffer[2];
+            for(int type=0; type<2; type++)
+                buffer[type] = x_val[type][idx];
+            nt->Fill(buffer);
+        }
+        nt->Write();
+        fout->Close();
+        
+        delete fout;
     }
     
     TString title = Form("CMS simluation");
@@ -1059,21 +1257,6 @@ void ProduceSignificancePlots(TString path, bool saveTuple = true)
         delete leg1;
         delete frame;
         delete canvas;
-    }
-    
-    if (saveTuple) {
-        TFile *fout = new TFile("fig/significance.root","recreate");
-        TNtupleD *nt = new TNtupleD("nt","","sigbd:sigbs");
-        for (int idx=0; idx<(int)x_val[0].size(); idx++) {
-            double buffer[2];
-            for(int type=0; type<2; type++)
-                buffer[type] = x_val[type][idx];
-            nt->Fill(buffer);
-        }
-        nt->Write();
-        fout->Close();
-        
-        delete fout;
     }
 }
 
@@ -1413,6 +1596,11 @@ void ProduceDemoTauSPlot(RooWorkspace *wspace)
         }
     }
     
+    // rebin the sPlots
+    TH1D* h_tau_rebin = Rebin_sPlot(h_tau);
+    delete h_tau;
+    h_tau = h_tau_rebin;
+    
     RooDataHist *h_tau_data = new RooDataHist("h_tau_data", "", RooArgList(*Tau), h_tau);
     
     TString title = "CMS Preliminary";
@@ -1424,7 +1612,7 @@ void ProduceDemoTauSPlot(RooWorkspace *wspace)
     
     RooAbsPdf *Tau_pdf_bs = wspace->pdf("Tau_pdf_bs_mix");
     
-    Tau_pdf_bs->plotOn(frame, DrawOption("L"), LineColor(kBlue), LineWidth(2), LineStyle(1), NumCPU(NCPU));
+    //Tau_pdf_bs->plotOn(frame, DrawOption("L"), LineColor(kBlue), LineWidth(2), LineStyle(1), NumCPU(NCPU));
     
     TCanvas* canvas = new TCanvas("canvas", "", 600, 600);
     canvas->SetMargin(0.14,0.06,0.13,0.07);
@@ -1440,6 +1628,11 @@ void ProduceDemoTauSPlot(RooWorkspace *wspace)
     frame->Draw("E");
     gStyle->SetErrorX(0);
     
+    TH1D* h_tau_curve = Produce_sPlot_FitCurve(h_tau, Tau_pdf_bs, Tau);
+    h_tau_curve->SetLineColor(kBlue);
+    h_tau_curve->SetLineWidth(2);
+    h_tau_curve->Draw("same");
+    
     TLatex tex;
     tex.SetTextFont(42);
     tex.SetTextSize(0.035);
@@ -1451,15 +1644,16 @@ void ProduceDemoTauSPlot(RooWorkspace *wspace)
     lin.SetLineColor(kGray+1);
     lin.SetLineWidth(2);
     lin.SetLineStyle(7);
-    lin.DrawLine(1.,0.,12.,0.);
+    lin.DrawLine(Tau_bound[0],0.,Tau_bound[1],0.);
     
     canvas->Update();
     
-    TLegend *leg1 = new TLegend(0.50,0.86,0.91,0.91);
+    TLegend *leg1 = new TLegend(0.50,0.81,0.91,0.91);
     leg1->SetNColumns(1);
     leg1->SetFillColor(kWhite);
     leg1->SetLineColor(kWhite);
     leg1->AddEntry(h_tau, "weighted toy (B_{s})", "lep");
+    leg1->AddEntry(h_tau_curve, "Fit result", "l");
     leg1->Draw();
     
     canvas->Print("fig/tau_splot_toy_bs.pdf");

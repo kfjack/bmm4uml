@@ -72,7 +72,7 @@ double EffBDTConvertion(TString opt = "bsmm", TString target_cat = "2016BFs01", 
         }
         
         if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
-        if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
+        //if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
         
         vec_bdt.push_back(bdt_t);
     }
@@ -131,7 +131,7 @@ void PrepareLifetimeResolutionModel(RooWorkspace *wspace, TString opt = "bsmm:tr
     
     RooRealVar delTau("delTau","",-0.6,+0.6);
     TH1D *h_global_deltau = new TH1D("h_global_deltau","",240,-0.6,+0.6);
-    TH1D *h_global_taue = new TH1D("h_global_taue","",192,TauRes_bound[0],TauRes_bound[1]);
+    TH1D *h_global_taue = new TH1D("h_global_taue","",240,TauRes_bound[0],TauRes_bound[1]);
     h_global_deltau->Sumw2();
     h_global_taue->Sumw2();
     
@@ -186,7 +186,7 @@ void PrepareLifetimeResolutionModel(RooWorkspace *wspace, TString opt = "bsmm:tr
         }
         
         if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
-        if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
+        //if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
         
         if (opt.Contains("even") && (evt%2==1)) continue;
         if (opt.Contains("odd") && (evt%2==0)) continue;
@@ -439,7 +439,7 @@ void PrepareLifetimeEfficiencyModel(RooWorkspace *wspace, TString opt = "bsmm:th
         
         //if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
         if (tau_t*1E12 < 0.5 || tau_t*1E12 > Tau_bound[1]) continue; // allow a litte bit more to the lower side
-        if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
+        //if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
         
         if (opt.Contains("even") && (evt%2==1)) continue;
         if (opt.Contains("odd") && (evt%2==0)) continue;
@@ -738,7 +738,7 @@ void PerformMCTauSPlotStudy(RooWorkspace *wspace, TString opt = "bsmm:reco", TSt
             
             // tau cuts
             if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
-            if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
+            //if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
             
             if (opt.Contains("geneff")) Tau->setVal(gtau_t*1E12);
             else Tau->setVal(tau_t*1E12);
@@ -1066,7 +1066,7 @@ void PerformAlterMCTauSPlotStudy(RooWorkspace *wspace, TString opt = "bsmm35:rec
             
             // tau cuts
             if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
-            if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
+            //if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
             
             if (opt.Contains("geneff")) Tau->setVal(gtau_t*1E12);
             else Tau->setVal(tau_t*1E12);
@@ -1261,7 +1261,7 @@ void PerformAbsoluteEfficiencyStudy(RooWorkspace *wspace, TString opt = "bsmm35:
             
         // tau cuts
         if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
-        if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
+        //if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
         
         double weight = exp((1./source_effTau-1./alter_effTau)*gtau_t*1E12);
         
@@ -1409,7 +1409,7 @@ void PerformBuDataTauSPlotStudy(RooWorkspace *wspace, TString opt = "bupsik", TS
         // tau cuts
         //if (tau_t*1E12 < Tau_bound[0] || tau_t*1E12 > Tau_bound[1]) continue;
         if (tau_t*1E12 < 0.5 || tau_t*1E12 > Tau_bound[1]) continue; // allow a litte bit more to the lower side
-        if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
+        //if (taue_t*1E12 < TauRes_bound[0] || taue_t*1E12 > TauRes_bound[1]) continue;
         
         if (opt.Contains("even") && (evt%2==1)) continue;
         if (opt.Contains("odd") && (evt%2==0)) continue;

@@ -11,7 +11,7 @@ to extract signal lifetime ----
 
 ### System requirement 
 - gcc 4.8 or newer
-- ROOT 6.10/02
+- ROOT 6.10/08 (please stick to this version)
 
 ### Initial the working area
 ```

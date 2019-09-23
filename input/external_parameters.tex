@@ -2,16 +2,18 @@
 % GLOBAL PHYSICS PARAMETERS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-\vdef{fsfu:val}   {\ensuremath{{0.259 } } }
-\vdef{fsfu:err}   {\ensuremath{{0.015 } } }
-\vdef{fsfu_S13:val}   {\ensuremath{{1.068 } } }
-\vdef{fsfu_S13:err}   {\ensuremath{{0.046 } } }
-\vdef{BF_BuToKpsiK:val}   {\ensuremath{{1.026E-3 } } }
-\vdef{BF_BuToKpsiK:err}   {\ensuremath{{0.031E-3 } } }
+\vdef{fsfu:val}   {\ensuremath{{0.252 } } }
+\vdef{fsfu:err}   {\ensuremath{{0.000 } } }
+\vdef{fsfu_S13:val}   {\ensuremath{{1.0 } } }
+\vdef{fsfu_S13:err}   {\ensuremath{{0.0 } } }
+\vdef{BF_BuToKpsiK:val}   {\ensuremath{{1.010E-3 } } }
+\vdef{BF_BuToKpsiK:err}   {\ensuremath{{0.029E-3 } } }
 \vdef{BF_JpsiToMuMu:val}   {\ensuremath{{5.961E-2 } } }
 \vdef{BF_JpsiToMuMu:err}   {\ensuremath{{0.033E-2 } } }
-\vdef{BF_BsToMuMu:val}   {\ensuremath{{3.65E-9 } } }
-\vdef{BF_BsToMuMu:err}   {\ensuremath{{0.23E-9 } } }
+%\vdef{BF_BsToMuMu:val}   {\ensuremath{{3.65E-9 } } }
+%\vdef{BF_BsToMuMu:err}   {\ensuremath{{0.23E-9 } } }
+\vdef{BF_BsToMuMu:val}   {\ensuremath{{3.57E-9 } } }
+\vdef{BF_BsToMuMu:err}   {\ensuremath{{0.17E-9 } } }
 \vdef{BF_BdToMuMu:val}   {\ensuremath{{1.06E-10 } } }
 \vdef{BF_BdToMuMu:err}   {\ensuremath{{0.09E-10 } } }
 \vdef{EffTau_BsToMuMu:val}   {\ensuremath{{1.610 } } }
@@ -32,14 +34,55 @@
 \vdef{2016GHs01:DeltaMass-chan1:val}   {\ensuremath{{-0.0031 } } }
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Width scale, defined by data/MC
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PeeK MC  : 1.03517 +- 0.00296033 / PeeK Data: 1.05671 +- 0.00373191
+\vdef{2011s01:WidthScale-chan0:val}   {\ensuremath{{1.0208 } } }
+% PeeK MC  : 0.940232 +- 0.00518816 / PeeK Data: 0.959485 +- 0.00733614
+\vdef{2011s01:WidthScale-chan1:val}   {\ensuremath{{1.0205 } } }
+% PeeK MC  : 1.02587 +- 0.00259578 / PeeK Data: 1.07494 +- 0.00210246
+\vdef{2012s01:WidthScale-chan0:val}   {\ensuremath{{1.0478 } } }
+% PeeK MC  : 0.915345 +- 0.00400584 / PeeK Data: 0.940911 +- 0.00432172
+\vdef{2012s01:WidthScale-chan1:val}   {\ensuremath{{1.0279 } } }
+% PeeK MC  : 1.11696 +- 0.00336557 / PeeK Data: 1.10188 +- 0.00368163
+\vdef{2016BFs01:WidthScale-chan0:val}   {\ensuremath{{0.9865 } } }
+% PeeK MC  : 1.07735 +- 0.00282055 / PeeK Data: 1.05729 +- 0.00336951
+\vdef{2016BFs01:WidthScale-chan1:val}   {\ensuremath{{0.9814 } } }
+% PeeK MC  : 1.08705 +- 0.00371431 / PeeK Data: 1.07841 +- 0.00504008
+\vdef{2016GHs01:WidthScale-chan0:val}   {\ensuremath{{0.9921 } } }
+% PeeK MC  : 1.05325 +- 0.00348987 / PeeK Data: 1.03458 +- 0.00533387
+\vdef{2016GHs01:WidthScale-chan1:val}   {\ensuremath{{0.9823 } } }
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Post-fit combinatorial decay time PDF parameters from 2D UML fits
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% 5.3319e-01 +/-  1.97e-01  
+\vdef{2011s01:EffTau-comb-chan0:val}   {\ensuremath{{0.53319 } } }
+% 3.7554e-01 +/-  3.37e-01  
+\vdef{2011s01:EffTau-comb-chan1:val}   {\ensuremath{{0.37554 } } }
+% 3.3509 +/-  1.07e+00
+\vdef{2012s01:EffTau-comb-chan0:val}   {\ensuremath{{3.3509 } } }
+% 2.7562+/-  9.07e-01
+\vdef{2012s01:EffTau-comb-chan1:val}   {\ensuremath{{2.7562 } } }
+% 1.5396 +/-  3.80e-01
+\vdef{2016BFs01:EffTau-comb-chan0:val}   {\ensuremath{{1.5396 } } }
+% 3.3043  +/-  9.79e-01
+\vdef{2016BFs01:EffTau-comb-chan1:val}   {\ensuremath{{3.3043 } } }
+% 8.5455e-01 +/-  2.16e-01
+\vdef{2016GHs01:EffTau-comb-chan0:val}   {\ensuremath{{0.85455 } } }
+% 4.1705 +/-  1.20e+00  
+\vdef{2016GHs01:EffTau-comb-chan1:val}   {\ensuremath{{4.1705 } } }
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Other systematic uncertainties
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vdef{effmuid4r_systematics:sys}   {\ensuremath{{0.03 } } }
 \vdef{efftrig4r_systematics:sys}   {\ensuremath{{0.03 } } }
-\vdef{efftrack_systematics:sys}   {\ensuremath{{0.04 } } }
+\vdef{2011s01:efftrack_systematics:sys}   {\ensuremath{{0.040 } } }
+\vdef{2012s01:efftrack_systematics:sys}   {\ensuremath{{0.040 } } }
+\vdef{2016BFs01:efftrack_systematics:sys}   {\ensuremath{{0.023 } } }
+\vdef{2016GHs01:efftrack_systematics:sys}   {\ensuremath{{0.023 } } }
 \vdef{2011s01:yieldcorr_systematics:sys}   {\ensuremath{{0.0 } } }
 \vdef{2012s01:yieldcorr_systematics:sys}   {\ensuremath{{0.0 } } }
-\vdef{2016BFs01:yieldcorr_systematics:sys}   {\ensuremath{{0.07 } } }
-\vdef{2016GHs01:yieldcorr_systematics:sys}   {\ensuremath{{0.03 } } }
-
-
+\vdef{2016BFs01:yieldcorr_systematics:sys}   {\ensuremath{{0.06 } } }
+\vdef{2016GHs01:yieldcorr_systematics:sys}   {\ensuremath{{0.05 } } }
